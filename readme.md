@@ -20,6 +20,9 @@ Distillation的脚本在examples/distill中，分为feature和output。与prune�
 ```
 注意pytorch使用的版本是1.0.0，可以需要检查一下版本是否符合。
 
+## load model脚本
+相关代码在load_model.py中，脚本在examples/load.sh中。在load_model.py主要是根据模型结构构造模型（resnet或mbnet，output classes），然后读取ckpt。
+
 ## 数据集下载
 所有的数据集应该放在./data目录下
 ### [Caltech-UCSD 200 Birds](http://www.vision.caltech.edu/visipedia/CUB-200.html)
