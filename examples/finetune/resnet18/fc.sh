@@ -22,7 +22,7 @@ do
     DATASET_ABBR=${DATASET_ABBRS[i]}
 
     NAME=resnet18_${DATASET_ABBR}_lr${lr}_iter${iter}_wd${wd}_mmt${mmt}_${id}
-    DIR=results/finetune/fc
+    DIR=results/finetune/resnet18/fc
 
     CUDA_VISIBLE_DEVICES=$1 \
     python -u finetune.py \

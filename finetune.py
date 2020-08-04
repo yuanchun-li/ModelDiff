@@ -28,6 +28,8 @@ from model.fe_resnet import resnet18_dropout, resnet50_dropout, resnet101_dropou
 from model.fe_mobilenet import mbnetv2_dropout
 from model.fe_resnet import feresnet18, feresnet50, feresnet101
 from model.fe_mobilenet import fembnetv2
+from model.fe_vgg16 import *
+
 
 from utils import *
 from finetuner import Finetuner
@@ -73,6 +75,7 @@ def get_args():
     )
     parser.add_argument("--train_all", default=False, action="store_true")
     parser.add_argument("--ft_begin_module", default=None)
+    parser.add_argument("--vgg_output_distill", default=False, action="store_true")
     # Weight prune
     parser.add_argument("--weight_ratio", default=-1, type=float)
     args = parser.parse_args()

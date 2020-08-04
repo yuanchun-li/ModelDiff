@@ -25,7 +25,7 @@ do
     DATASET_ABBR=${DATASET_ABBRS[i]}
 
     NAME=resnet18_${DATASET_ABBR}_\
-total${total_ratio}_lr${lr}_iter${iter}_feat${lmda}_wd${wd}_mmt${mmt}_${id}
+total${ratio}_lr${lr}_iter${iter}_feat${lmda}_wd${wd}_mmt${mmt}_${id}
     DIR=results/prune/
     CKPT_DIR=results/finetune/conv1/resnet18_${DATASET_ABBR}_lr5e-3_iter30000_wd1e-4_mmt0_1
 

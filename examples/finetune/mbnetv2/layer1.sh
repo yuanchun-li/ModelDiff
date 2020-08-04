@@ -22,7 +22,7 @@ do
     DATASET_ABBR=${DATASET_ABBRS[i]}
 
     NAME=mbnetv2_${DATASET_ABBR}_lr${lr}_iter${iter}_wd${wd}_mmt${mmt}_${id}
-    DIR=results/finetune/layer1
+    DIR=results/finetune/mbnetv2/layer1
 
     CUDA_VISIBLE_DEVICES=$1 \
     python -u finetune.py \

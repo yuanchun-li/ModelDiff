@@ -5,7 +5,7 @@ iter=10000
 id=1
 splmda=0
 lmda=0
-layer=12345
+layer=1234
 lr=5e-3
 wd=1e-4
 mmt=0
@@ -24,10 +24,10 @@ do
     DATASET_NAME=${DATASET_NAMES[i]}
     DATASET_ABBR=${DATASET_ABBRS[i]}
 
-    NAME=mbnetv2_${DATASET_ABBR}_\
+    NAME=vgg16_${DATASET_ABBR}_\
 total${ratio}_lr${lr}_iter${iter}_feat${lmda}_wd${wd}_mmt${mmt}_${id}
     DIR=results/prune/
-    CKPT_DIR=results/finetune/layer1/mbnetv2_${DATASET_ABBR}_lr5e-3_iter30000_wd1e-4_mmt0_1
+    CKPT_DIR=results/finetune/vgg16/feat0/vgg16_${DATASET_ABBR}_lr5e-3_iter30000_wd1e-4_mmt0_1
 
     CUDA_VISIBLE_DEVICES=$1 \
     python -u finetune.py \
@@ -35,10 +35,10 @@ total${ratio}_lr${lr}_iter${iter}_feat${lmda}_wd${wd}_mmt${mmt}_${id}
     --datapath data/${DATASET}/ \
     --dataset ${DATASET_NAME} \
     --name ${NAME} \
-    --batch_size 64 \
+    --batch_size 32 \
     --feat_lmda ${lmda} \
     --lr ${lr} \
-    --network mbnetv2 \
+    --network vgg16_bn \
     --weight_decay ${wd} \
     --beta 1e-2 \
     --test_interval 1000 \
