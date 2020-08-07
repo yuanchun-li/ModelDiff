@@ -84,7 +84,6 @@ class ModelWrapper:
         load the model object from torch_model_path
         :return: torch.nn.Module object
         """
-        # TODO check this
         if self.dataset_id == 'ImageNet':
             num_classes = 1000
         else:
@@ -118,7 +117,8 @@ class ModelWrapper:
                 dropout=0,
                 num_classes=train_loader.dataset.num_classes
             ).cuda()
-            # TODO check this
+
+            # TODO copy state_dict from teacher to student
             from finetuner import Finetuner
             args = argparse.Namespace()
             args.iterations = TRANSFER_ITERS
@@ -217,6 +217,8 @@ class ModelWrapper:
         :return: a float number
         """
         # TODO implement this
+        torch_model = self.torch_model
+        test_loader = self.benchmark.get_dataloader(self.dataset_id)
 
 
 class ImageBenchmark:
@@ -286,7 +288,6 @@ class ImageBenchmark:
         if not model_wrapper.torch_model_exists() and model_wrapper.gen_if_not_exist:
             self.logger.info(f'generating: {model_wrapper.__str__()}')
             # load pretrained model as specified by arch_id and save it to model path
-            # TODO check whether it is correct
             torch_model = eval(f'{arch_id}_dropout')(
                 pretrained=True,
                 dropout=0,
