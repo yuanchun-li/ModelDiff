@@ -74,7 +74,8 @@ class ModelWrapper:
         return os.path.exists(ckpt_path)
 
     def save_torch_model(self, torch_model):
-        os.makedirs(self.torch_model_path)
+        if not os.path.exists(self.torch_model_path):
+            os.makedirs(self.torch_model_path)
         ckpt_path = os.path.join(self.torch_model_path, 'final_ckpt.pth')
         torch.save(
             {'state_dict': torch_model.state_dict()},
