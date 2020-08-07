@@ -62,7 +62,7 @@ class ModelWrapper:
         self.torch_model_path = os.path.join(benchmark.models_dir, f'{self.__str__()}')
         assert self.arch_id is not None
         assert self.dataset_id is not None
-        if not os.path.exists(self.torch_model_path):
+        if self.gen_if_not_exist and not os.path.exists(self.torch_model_path):
             os.makedirs(self.torch_model_path)
 
     def __str__(self):
