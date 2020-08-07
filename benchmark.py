@@ -62,18 +62,20 @@ class ModelWrapper:
         self.torch_model_path = os.path.join(benchmark.models_dir, f'{self.__str__()}')
         assert self.arch_id is not None
         assert self.dataset_id is not None
+        if not os.path.exists(self.torch_model_path):
+            os.makedirs(self.torch_model_path)
 
     def __str__(self):
         teacher_str = '' if self.teacher_wrapper is None else self.teacher_wrapper.__str__()
         return f'{teacher_str}{self.trans_str}-'
 
     def torch_model_exists(self):
-        ckpt_path = os.path.join(self.torch_model_path, 'ckpt.pth')
+        ckpt_path = os.path.join(self.torch_model_path, 'final_ckpt.pth')
         return os.path.exists(ckpt_path)
 
     def save_torch_model(self, torch_model):
         os.makedirs(self.torch_model_path)
-        ckpt_path = os.path.join(self.torch_model_path, 'ckpt.pth')
+        ckpt_path = os.path.join(self.torch_model_path, 'final_ckpt.pth')
         torch.save(
             {'state_dict': torch_model.state_dict()},
             ckpt_path,
@@ -90,12 +92,25 @@ class ModelWrapper:
         else:
             num_classes = self.benchmark.get_dataloader(self.dataset_id).dataset.num_classes
         torch_model = eval(f'{self.arch_id}_dropout')(
-            pretrained=True,
+            pretrained=False,
             dropout=0,
             num_classes=num_classes
         )
-        ckpt = torch.load(os.path.join(self.torch_model_path, 'ckpt.pth'))
+        ckpt = torch.load(os.path.join(self.torch_model_path, 'final_ckpt.pth'))
         torch_model.load_state_dict(ckpt['state_dict'])
+        return torch_model
+
+    def load_saved_weights(self, torch_model):
+        """
+        load weights in the latest checkpoint to torch_model
+        """
+        ckpt_path = os.path.join(self.torch_model_path, 'ckpt.pth')
+        if os.path.exists(ckpt_path):
+            ckpt = torch.load(ckpt_path)
+            torch_model.load_state_dict(ckpt['state_dict'])
+            self.logger.info('load_saved_weights: loaded a previous checkpoint')
+        else:
+            self.logger.info('load_saved_weights: no previous checkpoint found')
         return torch_model
 
     def transfer(self, dataset_id, tune_ratio=0.1, iters=TRANSFER_ITERS):
@@ -113,17 +128,15 @@ class ModelWrapper:
             # transfer the model to another dataset as specified by dataset_id, fine-tune the last tune_ratio% layers
             train_loader = self.benchmark.get_dataloader(model_wrapper.dataset_id)
             test_loader = self.benchmark.get_dataloader(model_wrapper.dataset_id)
-            torch_model = eval(f'{model_wrapper.arch_id}_dropout')(
+            student_model = eval(f'{model_wrapper.arch_id}_dropout')(
                 pretrained=True,
                 dropout=0,
                 num_classes=train_loader.dataset.num_classes
             )
             # TODO copy state_dict from teacher to student, ignore the final layer
-            # torch_model.load_state_dict(teacher_model.state_dict(), strict=False)
+            # student_model.load_state_dict(teacher_model.state_dict(), strict=False)
             
             from finetuner import Finetuner
-            if not os.path.exists(model_wrapper.torch_model_path):
-                os.makedirs(model_wrapper.torch_model_path)
             args = argparse.Namespace()
             args.iterations = TRANSFER_ITERS
             args.const_lr = False
@@ -148,13 +161,14 @@ class ModelWrapper:
             args.ft_ratio = tune_ratio
             args.no_save = False
             
+            student_model = self.load_saved_weights(student_model) # continue training
             finetuner = Finetuner(
                 args,
-                torch_model, teacher_model,
+                student_model, teacher_model,
                 train_loader, test_loader,
             )
             finetuner.train()
-            model_wrapper.save_torch_model(torch_model)
+            model_wrapper.save_torch_model(student_model)
         return model_wrapper
 
     def quantize(self, dtype='qint8'):
