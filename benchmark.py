@@ -250,7 +250,7 @@ class ImageBenchmark:
         self.datasets_dir = datasets_dir
         self.models_dir = models_dir
         self.datasets = ['MIT67', 'Flower102', 'SDog120']
-        self.archs = ['vgg16_bn', 'resnet18', 'mbnetv2']
+        self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
 
     def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shot=-1):
         """
