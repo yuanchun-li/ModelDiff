@@ -329,6 +329,7 @@ class ImageBenchmark:
                 dropout=0,
                 num_classes=train_loader.dataset.num_classes
             )
+            # train the model from scratch
             # TODO implement this
             model_wrapper.save_torch_model(torch_model)
         return model_wrapper
