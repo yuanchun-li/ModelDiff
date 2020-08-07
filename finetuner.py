@@ -248,6 +248,7 @@ class Finetuner(object):
 
                     _, unweighted = l2sp(model, 0)
                     total_l2sp_reg += unweighted.item()
+                break
 
         return float(top1)/total*100, total_ce/(i+1), np.sum(total_feat_reg)/(i+1), total_l2sp_reg/(i+1), total_feat_reg/(i+1)
 

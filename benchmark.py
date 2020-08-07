@@ -30,10 +30,10 @@ INPUT_SHAPE = (224, 224, 3)
 BATCH_SIZE = 64
 TRAIN_ITERS = 100000    # TODO update the number of iterations
 TRANSFER_ITERS = 30000
-QUANTIZATION_ITERS = 10000  # may be useless
-PRUNE_ITERS = 10000
-DISTILL_ITERS = 10000
-STEAL_ITERS = 10000
+QUANTIZATION_ITERS = 30000  # may be useless
+PRUNE_ITERS = 30000
+DISTILL_ITERS = 30000
+STEAL_ITERS = 30000
 
 
 def lazy_property(func):
@@ -68,7 +68,8 @@ class ModelWrapper:
         return f'{teacher_str}{self.trans_str}-'
 
     def torch_model_exists(self):
-        return os.path.exists(self.torch_model_path)
+        ckpt_path = os.path.join(self.torch_model_path, 'ckpt.pth')
+        return os.path.exists(ckpt_path)
 
     def save_torch_model(self, torch_model):
         os.makedirs(self.torch_model_path)
@@ -120,9 +121,15 @@ class ModelWrapper:
 
             # TODO copy state_dict from teacher to student
             from finetuner import Finetuner
+            if not os.path.exists(model_wrapper.torch_model_path):
+                os.makedirs(model_wrapper.torch_model_path)
             args = argparse.Namespace()
             args.iterations = TRANSFER_ITERS
+            args.const_lr = False
+            args.batch_size = BATCH_SIZE
             args.lr = 5e-3
+            args.print_freq = 100
+            args.label_smoothing = 0
             args.output_dir = model_wrapper.torch_model_path
             args.network = model_wrapper.arch_id
             args.vgg_output_distill = False
@@ -138,6 +145,7 @@ class ModelWrapper:
             args.adv_test_interval = -1
             args.feat_layers = '12345'
             args.ft_ratio = tune_ratio
+            args.no_save = False
             
             finetuner = Finetuner(
                 args,
@@ -386,7 +394,7 @@ def parse_args():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.DEBUG, format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
 
     seed = 98
     torch.backends.cudnn.deterministic = True
