@@ -118,23 +118,29 @@ class ModelWrapper:
                 dropout=0,
                 num_classes=train_loader.dataset.num_classes
             ).cuda()
-            # TODO implement this
+            # TODO check this
             from finetuner import Finetuner
             args = argparse.Namespace()
-            configs.iterations = TRANSFER_ITERS
-            configs.lr = 5e-3
-            configs.output_dir = model_wrapper.torch_model_path
-            configs.network = model_wrapper.arch_id
-            configs.vgg_output_distill = False
-            configs.reinit = False
-            configs.l2sp_lmda = 0
-            configs.train_all = False
-            configs.ft_begin_module = None
-            configs.momentum = 0
-            configs.weight_decay = 1e-4
+            args.iterations = TRANSFER_ITERS
+            args.lr = 5e-3
+            args.output_dir = model_wrapper.torch_model_path
+            args.network = model_wrapper.arch_id
+            args.vgg_output_distill = False
+            args.reinit = False
+            args.l2sp_lmda = 0
+            args.train_all = False
+            args.ft_begin_module = None
+            args.momentum = 0
+            args.weight_decay = 1e-4
+            args.beta = 1e-2
+            args.feat_lmda = 0
+            args.test_interval = 1000
+            args.adv_test_interval = -1
+            args.feat_layers = '12345'
+            args.ft_ratio = tune_ratio
             
             finetuner = Finetuner(
-                configs,
+                args,
                 torch_model, teacher_model,
                 train_loader, test_loader,
             )

@@ -251,16 +251,23 @@ class Finetuner(object):
 
         return float(top1)/total*100, total_ce/(i+1), np.sum(total_feat_reg)/(i+1), total_l2sp_reg/(i+1), total_feat_reg/(i+1)
 
-    def get_fine_tuning_parameters(
-        self
-    ):
+    def get_fine_tuning_parameters(self):
         model = self.model
+        parameters = []
+
         ft_begin_module = self.args.ft_begin_module
+        ft_ratio = self.args.ft_ratio if 'ft_ratio' in self.args else None
         
+        if ft_ratio:
+            all_params = model.parameters()
+            num_tune_params = int(len(all_params) * ft_ratio)
+            for v in all_params[-num_tune_params:]:
+                parameters.append({'params': v})
+            return parameters
+
         if not ft_begin_module:
             return model.parameters()
 
-        parameters = []
         add_flag = False
         for k, v in model.named_parameters():
             # if ft_begin_module == k:
@@ -273,7 +280,7 @@ class Finetuner(object):
         if ft_begin_module and not add_flag:
             raise RuntimeError("wrong ft_begin_module, no module to finetune")
 
-
+        return parameters
             
     def train(self, ):
         model = self.model
