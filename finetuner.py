@@ -259,7 +259,7 @@ class Finetuner(object):
         ft_ratio = self.args.ft_ratio if 'ft_ratio' in self.args else None
         
         if ft_ratio:
-            all_params = model.parameters()
+            all_params = [param for param in model.parameters()]
             num_tune_params = int(len(all_params) * ft_ratio)
             for v in all_params[-num_tune_params:]:
                 parameters.append({'params': v})
