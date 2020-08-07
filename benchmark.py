@@ -118,8 +118,9 @@ class ModelWrapper:
                 dropout=0,
                 num_classes=train_loader.dataset.num_classes
             ).cuda()
-
-            # TODO copy state_dict from teacher to student
+            # copy state_dict from teacher to student
+            torch_model.load_state_dict(teacher_model.state_dict(), strict=False)
+            
             from finetuner import Finetuner
             if not os.path.exists(model_wrapper.torch_model_path):
                 os.makedirs(model_wrapper.torch_model_path)
