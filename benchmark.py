@@ -29,7 +29,7 @@ SEED = 98
 INPUT_SHAPE = (224, 224, 3)
 BATCH_SIZE = 64
 TRAIN_ITERS = 100000    # TODO update the number of iterations
-TRANSFER_ITERS = 10000
+TRANSFER_ITERS = 30000
 QUANTIZATION_ITERS = 10000  # may be useless
 PRUNE_ITERS = 10000
 DISTILL_ITERS = 10000
@@ -120,10 +120,19 @@ class ModelWrapper:
             ).cuda()
             # TODO implement this
             from finetuner import Finetuner
-            configs = argparse.Namespace()
+            args = argparse.Namespace()
             configs.iterations = TRANSFER_ITERS
             configs.lr = 5e-3
             configs.output_dir = model_wrapper.torch_model_path
+            configs.network = model_wrapper.arch_id
+            configs.vgg_output_distill = False
+            configs.reinit = False
+            configs.l2sp_lmda = 0
+            configs.train_all = False
+            configs.ft_begin_module = None
+            configs.momentum = 0
+            configs.weight_decay = 1e-4
+            
             finetuner = Finetuner(
                 configs,
                 torch_model, teacher_model,
