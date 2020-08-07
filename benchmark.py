@@ -162,7 +162,7 @@ class ModelWrapper:
             args.ft_ratio = tune_ratio
             args.no_save = False
             
-            student_model = self.load_saved_weights(student_model) # continue training
+            student_model = model_wrapper.load_saved_weights(student_model) # continue training
             finetuner = Finetuner(
                 args,
                 student_model, teacher_model,
