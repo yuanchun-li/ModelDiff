@@ -18,11 +18,11 @@ import torchcontrib
 from torchvision import transforms
 
 from dataset.cub200 import CUB200Data
-from dataset.mit67 import MIT67Data
-from dataset.stanford_dog import SDog120Data
+from dataset.mit67 import MIT67
+from dataset.stanford_dog import SDog120
 from dataset.caltech256 import Caltech257Data
 from dataset.stanford_40 import Stanford40Data
-from dataset.flower102 import Flower102Data
+from dataset.flower102 import Flower102
 
 from model.fe_resnet import resnet18_dropout, resnet50_dropout, resnet101_dropout
 from model.fe_mobilenet import mbnetv2_dropout
@@ -161,7 +161,6 @@ if __name__=="__main__":
         teacher.load_state_dict(checkpoint['state_dict'])
         print(f"Loaded teacher_ckpt from {args.teacher_ckpt}")
 
-    
     if args.reinit:
         for m in model.modules():
             if type(m) in [nn.Linear, nn.BatchNorm2d, nn.Conv2d]:

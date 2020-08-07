@@ -3,7 +3,7 @@ from PIL import Image
 import os
 
 
-class ImageNetData(data.Dataset):
+class ImageNet(data.Dataset):
     def __init__(self, root, is_train=True, transform=None):
         self.transform = transform
         self.num_classes = 1000

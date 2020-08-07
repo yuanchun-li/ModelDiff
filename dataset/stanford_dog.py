@@ -8,7 +8,7 @@ import os
 import scipy.io as sio
 
 
-class SDog120Data(data.Dataset):
+class SDog120(data.Dataset):
     def __init__(self, root, is_train=True, transform=None, shots=5, seed=0, preload=False):
         self.num_classes = 120
         self.transform = transform
@@ -75,9 +75,9 @@ class SDog120Data(data.Dataset):
 
 if __name__ == '__main__':
     seed= int(time.time())
-    data_train = SDog120Data('/data/stanford_dog', True, shots=10, seed=seed)
+    data_train = SDog120('/data/stanford_dog', True, shots=10, seed=seed)
     print(len(data_train))
-    data_test = SDog120Data('/data/stanford_dog', False, shots=10, seed=seed)
+    data_test = SDog120('/data/stanford_dog', False, shots=10, seed=seed)
     print(len(data_test))
     for i in data_train.image_path:
         if i in data_test.image_path:

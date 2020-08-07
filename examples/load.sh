@@ -10,9 +10,9 @@ lr=5e-3
 wd=1e-4
 mmt=0
 
-DATASETS=(MIT_67 Flower_102 stanford_dog)
-DATASET_NAMES=(MIT67Data Flower102Data SDog120Data)
-DATASET_ABBRS=(mit67 flower102 sdog120)
+DATASETS=(MIT67 Flower102 SDog120)
+DATASET_NAMES=(MIT67 Flower102 SDog120)
+DATASET_ABBRS=(MIT67 Flower102 SDog120)
 
 
 for i in 0 

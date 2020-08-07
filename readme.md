@@ -25,6 +25,48 @@ Distillation的脚本在examples/distill中，分为feature和output。与prune�
 
 ## 数据集下载
 所有的数据集应该放在./data目录下
+
+### [Oxford 102 Flowers](https://www.robots.ox.ac.uk/~vgg/data/flowers/102/)
+```
+Flower102/
+|    imagelabels.mat
+|    setid.mat
+|--- jpg/
+```
+
+### [Stanford 120 Dogs](http://vision.stanford.edu/aditya86/ImageNetDogs/)
+```
+SDog120/
+|    file_list.mat
+|    test_list.mat
+|    train_list.mat
+|--- train/
+|--- test/
+|--- Images/
+|--- Annotation/
+```
+
+### [MIT 67 Indoor Scenes](http://web.mit.edu/torralba/www/indoor.html)
+```
+MIT67/
+|    TrainImages.txt
+|    TestImages.txt
+|--- Annotations/
+|--- Images/
+|--- test/
+|--- train/
+```
+
+### [Stanford 40 Actions](http://vision.stanford.edu/Datasets/40actions.html)
+```
+stanford_40/
+|    attributes.txt
+|--- ImageSplits/
+|--- JPEGImages/
+|--- MatlabAnnotations/
+|--- XMLAnnotations/
+```
+
 ### [Caltech-UCSD 200 Birds](http://www.vision.caltech.edu/visipedia/CUB-200.html)
 Layout should be the following for the dataloader to load correctly
 
@@ -41,45 +83,4 @@ CUB_200_2011/
 |--- parts/
 |--- train/
 |--- test/
-```
-
-### [Oxford 102 Flowers](https://www.robots.ox.ac.uk/~vgg/data/flowers/102/)
-```
-Flower_102/
-|    imagelabels.mat
-|    setid.mat
-|--- jpg/
-```
-
-### [Stanford 120 Dogs](http://vision.stanford.edu/aditya86/ImageNetDogs/)
-```
-stanford_dog/
-|    file_list.mat
-|    test_list.mat
-|    train_list.mat
-|--- train/
-|--- test/
-|--- Images/
-|--- Annotation/
-```
-
-### [Stanford 40 Actions](http://vision.stanford.edu/Datasets/40actions.html)
-```
-stanford_40/
-|    attributes.txt
-|--- ImageSplits/
-|--- JPEGImages/
-|--- MatlabAnnotations/
-|--- XMLAnnotations/
-```
-
-### [MIT 67 Indoor Scenes](http://web.mit.edu/torralba/www/indoor.html)
-```
-MIT_67/
-|    TrainImages.txt
-|    TestImages.txt
-|--- Annotations/
-|--- Images/
-|--- test/
-|--- train/
 ```

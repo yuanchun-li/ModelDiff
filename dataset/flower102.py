@@ -7,7 +7,7 @@ import glob
 import numpy as np
 
 
-class Flower102Data(data.Dataset):
+class Flower102(data.Dataset):
     def __init__(self, root, is_train=True, transform=None, shots=-1, seed=0, preload=False):
         self.preload = preload
         self.num_classes = 102
@@ -76,9 +76,9 @@ class Flower102Data(data.Dataset):
 if __name__ == '__main__':
     # seed= int(time.time())
     seed= int(98)
-    data_train = Flower102Data('/data/Flower_102', True, shots=5, seed=seed)
+    data_train = Flower102('/data/Flower_102', True, shots=5, seed=seed)
     print(len(data_train))
-    data_test = Flower102Data('/data/Flower_102', False, shots=5, seed=seed)
+    data_test = Flower102('/data/Flower_102', False, shots=5, seed=seed)
     print(len(data_test))
     for i in data_train.image_path:
         if i in data_test.image_path:

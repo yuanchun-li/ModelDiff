@@ -8,7 +8,7 @@ import os
 from pdb import set_trace as st
 
 
-class MIT67Data(data.Dataset):
+class MIT67(data.Dataset):
     def __init__(self, root, is_train=False, transform=None, shots=-1, seed=0, preload=False):
         self.num_classes = 67
         self.transform = transform
@@ -77,9 +77,9 @@ class MIT67Data(data.Dataset):
 if __name__ == '__main__':
     # seed= int(time.time())
     seed= int(98)
-    data_train = MIT67Data('/data/MIT_67', True, shots=10, seed=seed)
+    data_train = MIT67('/data/MIT_67', True, shots=10, seed=seed)
     print(len(data_train))
-    data_test = MIT67Data('/data/MIT_67', False, shots=10, seed=seed)
+    data_test = MIT67('/data/MIT_67', False, shots=10, seed=seed)
     print(len(data_test))
     for i in data_train.image_path:
         if i in data_test.image_path:
