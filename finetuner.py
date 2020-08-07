@@ -45,8 +45,8 @@ class Finetuner(object):
         test_loader,
     ):
         self.args = args
-        self.model = model
-        self.teacher = teacher
+        self.model = model.to('cuda')
+        self.teacher = teacher.to('cuda')
         self.train_loader = train_loader
         self.test_loader = test_loader
 
@@ -296,8 +296,6 @@ class Finetuner(object):
         args = self.args
         update_pruned = args.train_all
 
-
-        model = model.to('cuda')
         model_params = self.get_fine_tuning_parameters()
         
         if l2sp_lmda == 0:
@@ -453,7 +451,7 @@ class Finetuner(object):
             if ( hasattr(self, "iterative_prune") and i % args.prune_interval == 0 ):
                 self.iterative_prune(i)
 
-        return model
+        return model.to('cpu')
 
     def countWeightInfo(self):
         ...

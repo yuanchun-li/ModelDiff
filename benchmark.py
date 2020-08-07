@@ -93,7 +93,7 @@ class ModelWrapper:
             pretrained=True,
             dropout=0,
             num_classes=num_classes
-        ).cuda()
+        )
         ckpt = torch.load(os.path.join(self.torch_model_path, 'ckpt.pth'))
         torch_model.load_state_dict(ckpt['state_dict'])
         return torch_model
@@ -117,9 +117,9 @@ class ModelWrapper:
                 pretrained=True,
                 dropout=0,
                 num_classes=train_loader.dataset.num_classes
-            ).cuda()
-            # copy state_dict from teacher to student
-            torch_model.load_state_dict(teacher_model.state_dict(), strict=False)
+            )
+            # TODO copy state_dict from teacher to student, ignore the final layer
+            # torch_model.load_state_dict(teacher_model.state_dict(), strict=False)
             
             from finetuner import Finetuner
             if not os.path.exists(model_wrapper.torch_model_path):
@@ -301,7 +301,7 @@ class ImageBenchmark:
                 pretrained=True,
                 dropout=0,
                 num_classes=1000
-            ).cuda()
+            )
             model_wrapper.save_torch_model(torch_model)
         return model_wrapper
 
@@ -328,7 +328,7 @@ class ImageBenchmark:
                 pretrained=False,
                 dropout=0,
                 num_classes=train_loader.dataset.num_classes
-            ).cuda()
+            )
             # TODO implement this
             model_wrapper.save_torch_model(torch_model)
         return model_wrapper
