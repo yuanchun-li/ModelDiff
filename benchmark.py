@@ -85,7 +85,10 @@ class ModelWrapper:
         :return: torch.nn.Module object
         """
         # TODO check this
-        num_classes = self.benchmark.get_dataloader(self.dataset_id).dataset.num_classes
+        if self.dataset_id == 'ImageNet':
+            num_classes = 1000
+        else:
+            num_classes = self.benchmark.get_dataloader(self.dataset_id).dataset.num_classes
         torch_model = eval(f'{self.arch_id}_dropout')(
             pretrained=True,
             dropout=0,
@@ -207,7 +210,7 @@ class ImageBenchmark:
         self.datasets_dir = datasets_dir
         self.models_dir = models_dir
         self.datasets = ['MIT67', 'Flower102', 'SDog120']
-        self.archs = ['VGG16', 'ResNet18', 'MobileNetV2']
+        self.archs = ['vgg16_bn', 'resnet18', 'mbnetv2']
 
     def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shot=-1):
         """
@@ -313,7 +316,7 @@ class ImageBenchmark:
         source_models = []
         # load pretrained source models
         for arch in self.archs:
-            source_model = self.load_pretrained(arch, gen_if_not_exist=False)
+            source_model = self.load_pretrained(arch, gen_if_not_exist=True)
             source_models.append(source_model)
 
         quantization_dtypes = ['qint8', 'float16']
