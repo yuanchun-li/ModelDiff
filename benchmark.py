@@ -9,7 +9,11 @@ import pathlib
 import functools
 import torch
 import torchvision
+import torchvision.models as models
 import numpy as np
+from pdb import set_trace as st
+import copy
+
 
 from dataset.mit67 import MIT67
 from dataset.stanford_dog import SDog120
@@ -24,10 +28,9 @@ from model.fe_resnet import feresnet18, feresnet50, feresnet101
 from model.fe_mobilenet import fembnetv2
 from model.fe_vgg16 import *
 
-
 SEED = 98
 INPUT_SHAPE = (224, 224, 3)
-BATCH_SIZE = 64
+BATCH_SIZE = 16
 TRAIN_ITERS = 100000    # TODO update the number of iterations
 TRANSFER_ITERS = 30000
 QUANTIZATION_ITERS = 30000  # may be useless
@@ -35,6 +38,11 @@ PRUNE_ITERS = 30000
 DISTILL_ITERS = 30000
 STEAL_ITERS = 30000
 
+# for debug
+# TRANSFER_ITERS = 100
+# PRUNE_ITERS = 100
+# DISTILL_ITERS = 100
+# STEAL_ITERS = 100
 
 def lazy_property(func):
     attribute = '_lazy_' + func.__name__
@@ -48,6 +56,30 @@ def lazy_property(func):
 
     return wrapper
 
+
+def base_args():
+    args = argparse.Namespace()
+    args.const_lr = False
+    args.batch_size = BATCH_SIZE
+    args.lr = 5e-3
+    args.print_freq = 100
+    args.label_smoothing = 0
+    args.vgg_output_distill = False
+    args.reinit = False
+    args.l2sp_lmda = 0
+    args.train_all = False
+    args.ft_begin_module = None
+    args.momentum = 0
+    args.weight_decay = 1e-4
+    args.beta = 1e-2
+    args.feat_lmda = 0
+    args.test_interval = 1000
+    args.adv_test_interval = -1
+    args.feat_layers = '1234'
+    args.no_save = False
+    args.steal = False
+    
+    return args
 
 class ModelWrapper:
     def __init__(self, benchmark, teacher_wrapper, trans_str,
@@ -94,9 +126,9 @@ class ModelWrapper:
             num_classes = self.benchmark.get_dataloader(self.dataset_id).dataset.num_classes
         torch_model = eval(f'{self.arch_id}_dropout')(
             pretrained=False,
-            dropout=0,
             num_classes=num_classes
         )
+        
         ckpt = torch.load(os.path.join(self.torch_model_path, 'final_ckpt.pth'))
         torch_model.load_state_dict(ckpt['state_dict'])
         return torch_model
@@ -131,36 +163,17 @@ class ModelWrapper:
             test_loader = self.benchmark.get_dataloader(model_wrapper.dataset_id)
             student_model = eval(f'{model_wrapper.arch_id}_dropout')(
                 pretrained=True,
-                dropout=0,
                 num_classes=train_loader.dataset.num_classes
             )
             # TODO copy state_dict from teacher to student, ignore the final layer
             # student_model.load_state_dict(teacher_model.state_dict(), strict=False)
             
             from finetuner import Finetuner
-            args = argparse.Namespace()
+            args = base_args()
             args.iterations = TRANSFER_ITERS
-            args.const_lr = False
-            args.batch_size = BATCH_SIZE
-            args.lr = 5e-3
-            args.print_freq = 100
-            args.label_smoothing = 0
             args.output_dir = model_wrapper.torch_model_path
             args.network = model_wrapper.arch_id
-            args.vgg_output_distill = False
-            args.reinit = False
-            args.l2sp_lmda = 0
-            args.train_all = False
-            args.ft_begin_module = None
-            args.momentum = 0
-            args.weight_decay = 1e-4
-            args.beta = 1e-2
-            args.feat_lmda = 0
-            args.test_interval = 1000
-            args.adv_test_interval = -1
-            args.feat_layers = '12345'
             args.ft_ratio = tune_ratio
-            args.no_save = False
             
             student_model = model_wrapper.load_saved_weights(student_model) # continue training
             finetuner = Finetuner(
@@ -203,6 +216,27 @@ class ModelWrapper:
             teacher_model = self.torch_model
             # prune prune_ratio% weights of the teacher model
             # TODO implement this
+            train_loader = self.benchmark.get_dataloader(model_wrapper.dataset_id)
+            test_loader = self.benchmark.get_dataloader(model_wrapper.dataset_id)
+            student_model = copy.deepcopy(teacher_model)
+            
+            from finetuner import Finetuner
+            args = base_args()
+            args.output_dir = model_wrapper.torch_model_path
+            args.network = model_wrapper.arch_id
+            args.method = "weight"
+            args.weight_ratio = prune_ratio
+            args.iterations = PRUNE_ITERS
+            
+            finetuner = Finetuner(
+                args,
+                student_model, teacher_model,
+                train_loader, test_loader,
+            )
+            finetuner.train()
+            model_wrapper.save_torch_model(student_model)
+            
+            
         return model_wrapper
 
     def distill(self, iters=DISTILL_ITERS):
@@ -216,7 +250,29 @@ class ModelWrapper:
             self.logger.info(f'generating: {model_wrapper.__str__()}')
             teacher_model = self.torch_model
             # distill the knowledge of teacher to a reinitialized model
+            train_loader = self.benchmark.get_dataloader(model_wrapper.dataset_id)
+            test_loader = self.benchmark.get_dataloader(model_wrapper.dataset_id)
+            student_model = eval(f'{model_wrapper.arch_id}_dropout')(
+                pretrained=True,
+                num_classes=train_loader.dataset.num_classes
+            )
+            
+            from finetuner import Finetuner
+            args = base_args()
+            args.iterations = DISTILL_ITERS
+            args.output_dir = model_wrapper.torch_model_path
+            args.network = model_wrapper.arch_id
+            args.feat_lmda = 5e0
+            
+            finetuner = Finetuner(
+                args,
+                student_model, teacher_model,
+                train_loader, test_loader,
+            )
+            finetuner.train()
+            model_wrapper.save_torch_model(student_model)
             # TODO implement this
+            
         return model_wrapper
 
     def steal(self, arch_id, iters=STEAL_ITERS):
@@ -232,6 +288,29 @@ class ModelWrapper:
             teacher_model = self.torch_model
             # use output distillation to transfer teacher knowledge to another architecture
             # TODO implement this
+            train_loader = self.benchmark.get_dataloader(model_wrapper.dataset_id)
+            test_loader = self.benchmark.get_dataloader(model_wrapper.dataset_id)
+            student_model = eval(f'{arch_id}_dropout')(
+                pretrained=True,
+                num_classes=train_loader.dataset.num_classes
+            )
+            
+            from finetuner import Finetuner
+            args = base_args()
+            args.iterations = STEAL_ITERS
+            args.output_dir = model_wrapper.torch_model_path
+            args.network = arch_id
+            args.steal = True
+            args.steal_alpha = 0.5
+            args.temperature = 1
+            
+            finetuner = Finetuner(
+                args,
+                student_model, teacher_model,
+                train_loader, test_loader,
+            )
+            finetuner.train()
+            model_wrapper.save_torch_model(student_model)
         return model_wrapper
 
     @lazy_property
@@ -252,6 +331,9 @@ class ImageBenchmark:
         self.models_dir = models_dir
         self.datasets = ['MIT67', 'Flower102', 'SDog120']
         self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
+        # For debug
+        # self.datasets = ['MIT67']
+        # self.archs = ['vgg16_bn']
 
     def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shot=-1):
         """
@@ -314,7 +396,6 @@ class ImageBenchmark:
             # load pretrained model as specified by arch_id and save it to model path
             torch_model = eval(f'{arch_id}_dropout')(
                 pretrained=True,
-                dropout=0,
                 num_classes=1000
             )
             model_wrapper.save_torch_model(torch_model)
@@ -341,7 +422,6 @@ class ImageBenchmark:
             train_loader = self.get_dataloader(model_wrapper.dataset_id, split='train')
             torch_model = eval(f'{arch_id}_dropout')(
                 pretrained=False,
-                dropout=0,
                 num_classes=train_loader.dataset.num_classes
             )
             # train the model from scratch
@@ -359,10 +439,12 @@ class ImageBenchmark:
         for arch in self.archs:
             source_model = self.load_pretrained(arch, gen_if_not_exist=True)
             source_models.append(source_model)
-
         quantization_dtypes = ['qint8', 'float16']
         prune_ratios = [0.2, 0.5, 0.8]
         transfer_tune_ratios = [0.1, 0.5, 1]
+        # for debug
+        # prune_ratios = [0.2]
+        # transfer_tune_ratios = [0.1]
 
         transfer_models = []
         # - M_{i,x}/{trans-y,l} -- Transfer M_{i,x} to D_y by fine-tuning from l-st layer
@@ -374,8 +456,9 @@ class ImageBenchmark:
                     transfer_model = source_model.transfer(dataset_id=dataset_id, tune_ratio=tune_ratio)
                     transfer_models.append(transfer_model)
                     yield transfer_model
-
+        
         # - M_{i,x}/{quant-dyn/int/flo} -- Compress M_{i,x} with dynamic_range / integer / float16 quantization
+        # for debug
         for transfer_model in transfer_models:
             for quantization_dtype in quantization_dtypes:
                 yield transfer_model.quantize(dtype=quantization_dtype)
@@ -384,10 +467,11 @@ class ImageBenchmark:
         for transfer_model in transfer_models:
             for pr in prune_ratios:
                 yield transfer_model.prune(prune_ratio=pr)
-
+        
         # - M_{i,x}/{distill} -- Distill M_{i,x}
         for transfer_model in transfer_models:
             yield transfer_model.distill()
+        
 
         # - M_{i,x}/{steal-j} -- Steal M_{i,x} to A_j
         for transfer_model in transfer_models:
