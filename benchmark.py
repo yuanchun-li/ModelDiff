@@ -30,7 +30,7 @@ from model.fe_vgg16 import *
 
 SEED = 98
 INPUT_SHAPE = (224, 224, 3)
-BATCH_SIZE = 16
+BATCH_SIZE = 64
 TRAIN_ITERS = 100000    # TODO update the number of iterations
 TRANSFER_ITERS = 30000
 QUANTIZATION_ITERS = 30000  # may be useless
@@ -42,7 +42,7 @@ STEAL_ITERS = 30000
 # TRANSFER_ITERS = 100
 # PRUNE_ITERS = 100
 # DISTILL_ITERS = 100
-# STEAL_ITERS = 100
+# STEAL_ITERS = 10000
 
 def lazy_property(func):
     attribute = '_lazy_' + func.__name__
@@ -301,7 +301,7 @@ class ModelWrapper:
             args.output_dir = model_wrapper.torch_model_path
             args.network = arch_id
             args.steal = True
-            args.steal_alpha = 0.5
+            args.steal_alpha = 1
             args.temperature = 1
             
             finetuner = Finetuner(
@@ -333,7 +333,7 @@ class ImageBenchmark:
         self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
         # For debug
         # self.datasets = ['MIT67']
-        # self.archs = ['vgg16_bn']
+        # self.archs = ['resnet18']
 
     def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shot=-1):
         """

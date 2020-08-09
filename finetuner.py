@@ -125,6 +125,8 @@ class Finetuner(object):
     def compute_steal_loss(
         self, batch, label, 
     ):
+        def CXE(predicted, target):
+            return -(target * torch.log(predicted)).sum(dim=1).mean()
         model = self.model
         teacher = self.teacher
         alpha = self.args.steal_alpha
@@ -134,12 +136,21 @@ class Finetuner(object):
         out = model(batch)
         _, pred = out.max(dim=1)
         
-        soft_loss = nn.KLDivLoss()(
-            F.log_softmax(out/T, dim=1),
-            F.softmax(teacher_out/T, dim=1)
-        ) * (alpha * T * T)
-        hard_loss = F.cross_entropy(out, label) * (1. - alpha)
-        KD_loss = soft_loss + hard_loss
+        # _, teacher_pred = teacher_out.max(dim=1)
+        # KD_loss = F.cross_entropy(out, teacher_pred)
+        # soft_loss, hard_loss = 0, 0
+        
+        out = F.softmax(out)
+        teacher_out = F.softmax(teacher_out)
+        KD_loss = CXE(out, teacher_out)
+        soft_loss, hard_loss = 0, 0
+        
+        # soft_loss = nn.KLDivLoss()(
+        #     F.log_softmax(out/T, dim=1),
+        #     F.softmax(teacher_out/T, dim=1)
+        # ) * (alpha * T * T)
+        # hard_loss = F.cross_entropy(out, label) * (1. - alpha)
+        # KD_loss = soft_loss + hard_loss
         
         top1 = float(pred.eq(label).sum().item()) / label.shape[0] * 100.
 
