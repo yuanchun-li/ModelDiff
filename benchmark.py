@@ -34,7 +34,7 @@ from finetuner import Finetuner
 SEED = 98
 INPUT_SHAPE = (224, 224, 3)
 BATCH_SIZE = 64
-TRAIN_ITERS = 100000    # TODO update the number of iterations
+TRAIN_ITERS = 30000    # TODO update the number of iterations
 TRANSFER_ITERS = 30000
 QUANTIZATION_ITERS = 30000  # may be useless
 PRUNE_ITERS = 30000
@@ -475,6 +475,15 @@ class ImageBenchmark:
         for arch in self.archs:
             source_model = self.load_pretrained(arch)
             source_models.append(source_model)
+            yield source_model
+
+        # retrain models
+        retrain_models = []
+        for arch_id in self.archs:
+            for dataset_id in self.datasets:
+                retrain_model = self.load_trained(arch_id, dataset_id, TRAIN_ITERS)
+                retrain_models.append(retrain_model)
+                yield retrain_model
 
         # for debug
         # prune_ratios = [0.2]
@@ -545,16 +554,17 @@ if __name__ == '__main__':
     mask_substrs = args.mask.split('+')
     for model_wrapper in bench.build_models():
         print(f'loaded model: {model_wrapper}')
+        model_str = model_wrapper.__str__().replace('(', '<').replace(')', '>')
         to_gen = True
         for mask_substr in mask_substrs:
-            if mask_substr not in f'^{model_wrapper.__str__()}$':
+            if mask_substr not in f'<{model_str}>':
                 to_gen = False
                 break
         if to_gen:
             models_to_gen.append(model_wrapper)
     models_to_gen_str = "\n".join([model_wrapper.__str__() for model_wrapper in models_to_gen])
     print(f'{len(models_to_gen)} models to generate: \n{models_to_gen_str}')
-    # for model_wrapper in models_to_gen:
-    #     model_wrapper.gen_model()
+    for model_wrapper in models_to_gen:
+        model_wrapper.gen_model()
     # print(benchmark.model2variations)
 

@@ -5,13 +5,12 @@ from benchmark import ImageBenchmark
 
 
 def schedule_transfer_jobs(args):
-    tag = args.tag
     bench = ImageBenchmark(datasets_dir='', models_dir='')
     for model_wrapper in bench.build_models():
-        model_str = model_wrapper.__str__()
+        model_str = model_wrapper.__str__().replace('(', '<').replace(')', '>')
         model_str_tokens = model_str.split('-')
         if len(model_str_tokens) > 2 and model_str_tokens[-2].startswith('transfer'):
-            print(f'{tag} benchmark.py \'-mask_str \"^{model_str}$\"\'')
+            print(f'{args.prefix} \'-mask_str <{model_str}>\'')
 
 
 def parse_args():
@@ -21,8 +20,8 @@ def parse_args():
     """
     parser = argparse.ArgumentParser(description="Generate Philly job commands.")
 
-    parser.add_argument("--tag", action="store", dest="tag", type=str, default="T",
-                        help="A tag string to identify the job category.")
+    parser.add_argument("-prefix", action="store", dest="prefix", type=str, default="T",
+                        help="A prefix string for the command.")
     args, unknown = parser.parse_known_args()
     return args
 
