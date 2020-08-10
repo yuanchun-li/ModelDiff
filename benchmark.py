@@ -466,13 +466,16 @@ class ImageBenchmark:
         :return: a stream of ModelWrapper instances
         """
         source_models = []
+
+        quantization_dtypes = ['qint8', 'float16']
+        prune_ratios = [0.2, 0.5, 0.8]
+        transfer_tune_ratios = [0.1, 0.5, 1]
+
         # load pretrained source models
         for arch in self.archs:
             source_model = self.load_pretrained(arch)
             source_models.append(source_model)
-        quantization_dtypes = ['qint8', 'float16']
-        prune_ratios = [0.2, 0.5, 0.8]
-        transfer_tune_ratios = [0.1, 0.5, 1]
+
         # for debug
         # prune_ratios = [0.2]
         # transfer_tune_ratios = [0.1]
@@ -521,7 +524,7 @@ def parse_args():
     parser.add_argument("-models_dir", action="store", dest="models_dir", default='models',
                         help="Path to the dir of benchmark models.")
     parser.add_argument("-mask", action="store", dest="mask", default='',
-                        help="Mask the models to generate, split with +")
+                        help="The mask to filter the models to generate, split with +")
     args, unknown = parser.parse_known_args()
     return args
 
@@ -544,8 +547,9 @@ if __name__ == '__main__':
         print(f'loaded model: {model_wrapper}')
         to_gen = True
         for mask_substr in mask_substrs:
-            if mask_substr not in model_wrapper.__str__():
+            if mask_substr not in f'^{model_wrapper.__str__()}$':
                 to_gen = False
+                break
         if to_gen:
             models_to_gen.append(model_wrapper)
     models_to_gen_str = "\n".join([model_wrapper.__str__() for model_wrapper in models_to_gen])
