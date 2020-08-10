@@ -273,8 +273,6 @@ class Finetuner(object):
             total_ce = 0
             total_feat_reg = np.zeros(len(reg_layers))
             total_l2sp_reg = 0
-            total = 0
-            top1 = 0
 
             total = 0
             top1 = 0
