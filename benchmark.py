@@ -532,8 +532,10 @@ def parse_args():
                         help="Path to the dir of datasets.")
     parser.add_argument("-models_dir", action="store", dest="models_dir", default='models',
                         help="Path to the dir of benchmark models.")
-    parser.add_argument("-mask", action="store", dest="mask", default='',
+    parser.add_argument("-mask", action="store", dest="mask", default="",
                         help="The mask to filter the models to generate, split with +")
+    parser.add_argument("-phase", action="store", dest="phase", type=str, default="",
+                        help="The phase to run. Use a prefix to filter the phases.")
     args, unknown = parser.parse_known_args()
     return args
 
@@ -551,17 +553,21 @@ if __name__ == '__main__':
     args = parse_args()
     bench = ImageBenchmark(datasets_dir=args.datasets_dir, models_dir=args.models_dir)
     models_to_gen = []
-    mask_substrs = args.mask.split('+')
+    mask_substrs = args.mask.strip().split('+')
     for model_wrapper in bench.build_models():
         print(f'loaded model: {model_wrapper}')
-        model_str = model_wrapper.__str__().replace('(', '<').replace(')', '>')
-        to_gen = True
-        for mask_substr in mask_substrs:
-            if mask_substr not in f'<{model_str}>':
-                to_gen = False
-                break
-        if to_gen:
-            models_to_gen.append(model_wrapper)
+        model_str_tokens = model_wrapper.__str__().split('-')
+        if len(model_str_tokens) >= 2 and model_str_tokens[-2].startswith(args.phase):
+            to_gen = True
+            model_str = re.sub(r'[^A-Za-z0-9.]+', '_', model_wrapper.__str__())
+            for mask_substr in mask_substrs:
+                if not mask_substr:
+                    continue
+                if mask_substr not in f'_{model_str}_':
+                    to_gen = False
+                    break
+            if to_gen:
+                models_to_gen.append(model_wrapper)
     models_to_gen_str = "\n".join([model_wrapper.__str__() for model_wrapper in models_to_gen])
     print(f'{len(models_to_gen)} models to generate: \n{models_to_gen_str}')
     for model_wrapper in models_to_gen:
