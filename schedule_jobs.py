@@ -29,13 +29,18 @@ def parse_args():
                         help="A prefix string for the command.")
     parser.add_argument("-phase", action="store", dest="phase", type=str, default="",
                         help="The phase to run. Use a prefix to filter the phases.")
+    parser.add_argument("-mode", action="store", dest="mode", type=str, default="1@1",
+                        help="Schedule mode. 1@1 means one job on one device. all@1 means all on one.")
     args, unknown = parser.parse_known_args()
     return args
 
 
 def main():
     args = parse_args()
-    schedule_one_on_one(args)
+    if args.mode == "1@1":
+        schedule_one_on_one(args)
+    elif args.mode == "all@1":
+        schedule_all_on_one(args)
 
 
 if __name__ == "__main__":
