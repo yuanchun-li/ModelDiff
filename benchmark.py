@@ -148,7 +148,7 @@ class ModelWrapper:
             self.logger.info('load_saved_weights: no previous checkpoint found')
         return torch_model
 
-    def gen_model(self):
+    def gen_model(self, regenerate=False):
         """
         generate the torch model
         :return:
@@ -162,6 +162,9 @@ class ModelWrapper:
         method = m.group(1)
         params = m.group(2).split(',')
 
+        if regenerate:
+            import shutil
+            shutil.rmtree(self.torch_model_path)
         if not os.path.exists(self.torch_model_path):
             os.makedirs(self.torch_model_path)
 
@@ -457,9 +460,9 @@ class ImageBenchmark:
         )
         return model_wrapper
 
-    def build_models(self):
+    def list_models(self):
         """
-        build the benchmark dataset
+        list the models in the benchmark dataset
         :return: a stream of ModelWrapper instances
         """
         source_models = []
@@ -533,6 +536,8 @@ def parse_args():
                         help="The mask to filter the models to generate, split with +")
     parser.add_argument("-phase", action="store", dest="phase", type=str, default="",
                         help="The phase to run. Use a prefix to filter the phases.")
+    parser.add_argument("-regenerate", action="store_true", dest="regenerate", default=False,
+                        help="Whether to regenerate the models.")
     args, unknown = parser.parse_known_args()
     return args
 
@@ -551,7 +556,7 @@ if __name__ == '__main__':
     bench = ImageBenchmark(datasets_dir=args.datasets_dir, models_dir=args.models_dir)
     models_to_gen = []
     mask_substrs = args.mask.strip().split('+')
-    for model_wrapper in bench.build_models():
+    for model_wrapper in bench.list_models():
         print(f'loaded model: {model_wrapper}')
         model_str_tokens = model_wrapper.__str__().split('-')
         if len(model_str_tokens) >= 2 and model_str_tokens[-2].startswith(args.phase):
@@ -568,6 +573,6 @@ if __name__ == '__main__':
     models_to_gen_str = "\n".join([model_wrapper.__str__() for model_wrapper in models_to_gen])
     print(f'{len(models_to_gen)} models to generate: \n{models_to_gen_str}')
     for model_wrapper in models_to_gen:
-        model_wrapper.gen_model()
+        model_wrapper.gen_model(regenerate=args.regenerate)
     # print(benchmark.model2variations)
 

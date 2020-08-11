@@ -352,14 +352,14 @@ class Finetuner(object):
         
         if l2sp_lmda == 0:
             optimizer = optim.SGD(
-                model.parameters(), 
+                model_params, 
                 lr=lr, 
                 momentum=args.momentum, 
                 weight_decay=args.weight_decay,
             )
         else:
             optimizer = optim.SGD(
-                model.parameters(), 
+                model_params, 
                 lr=lr, 
                 momentum=args.momentum, 
                 weight_decay=0,
