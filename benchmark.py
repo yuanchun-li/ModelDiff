@@ -34,7 +34,7 @@ from finetuner import Finetuner
 SEED = 98
 INPUT_SHAPE = (224, 224, 3)
 BATCH_SIZE = 64
-TRAIN_ITERS = 30000    # TODO update the number of iterations
+TRAIN_ITERS = 100000    # TODO update the number of iterations
 TRANSFER_ITERS = 30000
 QUANTIZATION_ITERS = 30000  # may be useless
 PRUNE_ITERS = 30000
@@ -154,7 +154,7 @@ class ModelWrapper:
         :return:
         """
         trans_str = self.trans_str
-        if self.torch_model_exists():
+        if not regenerate and self.torch_model_exists():
             self.logger.info(f'model already exists: {self.__str__()}')
             return
         self.logger.info(f'generating model for: {self.__str__()}')
@@ -162,7 +162,7 @@ class ModelWrapper:
         method = m.group(1)
         params = m.group(2).split(',')
 
-        if regenerate:
+        if regenerate and os.path.exists(self.torch_model_path):
             import shutil
             shutil.rmtree(self.torch_model_path)
         if not os.path.exists(self.torch_model_path):
@@ -377,7 +377,8 @@ class ImageBenchmark:
         self.datasets_dir = datasets_dir
         self.models_dir = models_dir
         self.datasets = ['MIT67', 'Flower102', 'SDog120']
-        self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
+        # self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
+        self.archs = ['mbnetv2', 'resnet18']
         # For debug
         # self.datasets = ['MIT67']
         # self.archs = ['resnet18']
@@ -557,7 +558,7 @@ if __name__ == '__main__':
     models_to_gen = []
     mask_substrs = args.mask.strip().split('+')
     for model_wrapper in bench.list_models():
-        print(f'loaded model: {model_wrapper}')
+        # print(f'loaded model: {model_wrapper}')
         model_str_tokens = model_wrapper.__str__().split('-')
         if len(model_str_tokens) >= 2 and model_str_tokens[-2].startswith(args.phase):
             to_gen = True
