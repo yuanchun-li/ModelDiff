@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# sample usage:
+# python .\ModelDiff_code\schedule_jobs.py -phase train -prefix 'python philly_ycli/submit_job.py -params'
 import argparse
 import os
 import re
@@ -7,11 +9,11 @@ from benchmark import ImageBenchmark
 
 def schedule_one_on_one(args):
     bench = ImageBenchmark(datasets_dir='', models_dir='')
-    for model_wrapper in bench.build_models():
+    for model_wrapper in bench.list_models():
         model_str_tokens = model_wrapper.__str__().split('-')
         if len(model_str_tokens) >= 2 and model_str_tokens[-2].startswith(args.phase):
             model_str = re.sub(r'[^A-Za-z0-9.]+', '_', model_wrapper.__str__())
-            print(f'{args.prefix} \'-mask _{model_str}_\'')
+            print(f'{args.prefix} \'-regenerate -mask _{model_str}_\'')
 
 
 def schedule_all_on_one(args):
