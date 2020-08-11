@@ -154,142 +154,138 @@ class ModelWrapper:
         :return:
         """
         trans_str = self.trans_str
-        try:
-            if self.torch_model_exists():
-                self.logger.info(f'model already exists: {self.__str__()}')
-                return
-            self.logger.info(f'generating model for: {self.__str__()}')
-            m = re.match(r'(\S+)\((\S*)\)', trans_str)
-            method = m.group(1)
-            params = m.group(2).split(',')
+        if self.torch_model_exists():
+            self.logger.info(f'model already exists: {self.__str__()}')
+            return
+        self.logger.info(f'generating model for: {self.__str__()}')
+        m = re.match(r'(\S+)\((\S*)\)', trans_str)
+        method = m.group(1)
+        params = m.group(2).split(',')
 
-            if not os.path.exists(self.torch_model_path):
-                os.makedirs(self.torch_model_path)
+        if not os.path.exists(self.torch_model_path):
+            os.makedirs(self.torch_model_path)
 
-            teacher_model = None
-            if self.teacher_wrapper:
-                self.teacher_wrapper.gen_model()
-                teacher_model = self.teacher_wrapper.torch_model
-            train_loader = self.benchmark.get_dataloader(self.dataset_id, split='train')
-            test_loader = self.benchmark.get_dataloader(self.dataset_id, split='test')
+        teacher_model = None
+        if self.teacher_wrapper:
+            self.teacher_wrapper.gen_model()
+            teacher_model = self.teacher_wrapper.torch_model
+        train_loader = self.benchmark.get_dataloader(self.dataset_id, split='train')
+        test_loader = self.benchmark.get_dataloader(self.dataset_id, split='test')
 
-            args = base_args()
-            args.iterations = self.iters
-            args.output_dir = self.torch_model_path
+        args = base_args()
+        args.iterations = self.iters
+        args.output_dir = self.torch_model_path
 
-            if method == 'pretrain':
-                # load pretrained model as specified by arch_id and save it to model path
-                arch_id = params[0]
-                dataset_id = params[1]
-                if dataset_id != 'ImageNet':
-                    self.logger.warning(f'gen_model: pretrained model on {dataset_id} not supported')
-                torch_model = eval(f'{arch_id}_dropout')(
-                    pretrained=True,
-                    num_classes=1000
-                )
-                self.save_torch_model(torch_model)
-            elif method == 'train':
-                # train the model from scratch
-                arch_id = params[0]
-                dataset_id = params[1]
-                torch_model = eval(f'{arch_id}_dropout')(
-                    pretrained=False,
-                    num_classes=train_loader.dataset.num_classes
-                )
-                args.network = self.arch_id
-                args.ft_ratio = 1
+        if method == 'pretrain':
+            # load pretrained model as specified by arch_id and save it to model path
+            arch_id = params[0]
+            dataset_id = params[1]
+            if dataset_id != 'ImageNet':
+                self.logger.warning(f'gen_model: pretrained model on {dataset_id} not supported')
+            torch_model = eval(f'{arch_id}_dropout')(
+                pretrained=True,
+                num_classes=1000
+            )
+            self.save_torch_model(torch_model)
+        elif method == 'train':
+            # train the model from scratch
+            arch_id = params[0]
+            dataset_id = params[1]
+            torch_model = eval(f'{arch_id}_dropout')(
+                pretrained=False,
+                num_classes=train_loader.dataset.num_classes
+            )
+            args.network = self.arch_id
+            args.ft_ratio = 1
+            args.reinit = True
 
-                torch_model = self.load_saved_weights(torch_model)  # continue training
-                finetuner = Finetuner(
-                    args,
-                    torch_model, torch_model,
-                    train_loader, test_loader,
-                )
-                finetuner.train()
-                self.save_torch_model(torch_model)
-            elif method == 'transfer':
-                # transfer the teacher to a dataset as specified by dataset_id, fine-tune the last tune_ratio% layers
-                dataset_id = params[0]
-                tune_ratio = float(params[1])
-                student_model = eval(f'{self.arch_id}_dropout')(
-                    pretrained=True,
-                    num_classes=train_loader.dataset.num_classes
-                )
-                # FIXME copy state_dict from teacher to student, ignore the final layer
-                # student_model.load_state_dict(teacher_model.state_dict(), strict=False)
+            torch_model = self.load_saved_weights(torch_model)  # continue training
+            finetuner = Finetuner(
+                args,
+                torch_model, torch_model,
+                train_loader, test_loader,
+            )
+            finetuner.train()
+            self.save_torch_model(torch_model)
+        elif method == 'transfer':
+            # transfer the teacher to a dataset as specified by dataset_id, fine-tune the last tune_ratio% layers
+            dataset_id = params[0]
+            tune_ratio = float(params[1])
+            student_model = eval(f'{self.arch_id}_dropout')(
+                pretrained=True,
+                num_classes=train_loader.dataset.num_classes
+            )
+            # FIXME copy state_dict from teacher to student, ignore the final layer
+            # student_model.load_state_dict(teacher_model.state_dict(), strict=False)
 
-                args.network = self.arch_id
-                args.ft_ratio = tune_ratio
+            args.network = self.arch_id
+            args.ft_ratio = tune_ratio
 
-                student_model = self.load_saved_weights(student_model)  # continue training
-                finetuner = Finetuner(
-                    args,
-                    student_model, teacher_model,
-                    train_loader, test_loader,
-                )
-                finetuner.train()
-                self.save_torch_model(student_model)
-            elif method == 'quantize':
-                dtype = params[0]
-                dtype = torch.qint8 if dtype == 'qint8' else torch.float16
-                student_model = torch.quantization.quantize_dynamic(teacher_model, dtype=dtype)
-                self.save_torch_model(student_model)
-            elif method == 'prune':
-                prune_ratio = float(params[0])
-                student_model = copy.deepcopy(teacher_model)
+            student_model = self.load_saved_weights(student_model)  # continue training
+            finetuner = Finetuner(
+                args,
+                student_model, teacher_model,
+                train_loader, test_loader,
+            )
+            finetuner.train()
+            self.save_torch_model(student_model)
+        elif method == 'quantize':
+            dtype = params[0]
+            dtype = torch.qint8 if dtype == 'qint8' else torch.float16
+            student_model = torch.quantization.quantize_dynamic(teacher_model, dtype=dtype)
+            self.save_torch_model(student_model)
+        elif method == 'prune':
+            prune_ratio = float(params[0])
+            student_model = copy.deepcopy(teacher_model)
 
-                args.network = self.arch_id
-                args.method = "weight"
-                args.weight_ratio = prune_ratio
+            args.network = self.arch_id
+            args.method = "weight"
+            args.weight_ratio = prune_ratio
 
-                finetuner = Finetuner(
-                    args,
-                    student_model, teacher_model,
-                    train_loader, test_loader,
-                )
-                finetuner.train()
-                self.save_torch_model(student_model)
-            elif method == 'distill':
-                student_model = eval(f'{self.arch_id}_dropout')(
-                    pretrained=True,
-                    num_classes=train_loader.dataset.num_classes
-                )
-                args.network = self.arch_id
-                args.feat_lmda = 5e0
+            finetuner = Finetuner(
+                args,
+                student_model, teacher_model,
+                train_loader, test_loader,
+            )
+            finetuner.train()
+            self.save_torch_model(student_model)
+        elif method == 'distill':
+            student_model = eval(f'{self.arch_id}_dropout')(
+                pretrained=True,
+                num_classes=train_loader.dataset.num_classes
+            )
+            args.network = self.arch_id
+            args.feat_lmda = 5e0
 
-                finetuner = Finetuner(
-                    args,
-                    student_model, teacher_model,
-                    train_loader, test_loader,
-                )
-                finetuner.train()
-                self.save_torch_model(student_model)
-            elif method == 'steal':
-                arch_id = params[0]
-                # use output distillation to transfer teacher knowledge to another architecture
-                student_model = eval(f'{arch_id}_dropout')(
-                    pretrained=True,
-                    num_classes=train_loader.dataset.num_classes
-                )
+            finetuner = Finetuner(
+                args,
+                student_model, teacher_model,
+                train_loader, test_loader,
+            )
+            finetuner.train()
+            self.save_torch_model(student_model)
+        elif method == 'steal':
+            arch_id = params[0]
+            # use output distillation to transfer teacher knowledge to another architecture
+            student_model = eval(f'{arch_id}_dropout')(
+                pretrained=True,
+                num_classes=train_loader.dataset.num_classes
+            )
 
-                args.network = arch_id
-                args.steal = True
-                args.steal_alpha = 1
-                args.temperature = 1
+            args.network = arch_id
+            args.steal = True
+            args.steal_alpha = 1
+            args.temperature = 1
 
-                finetuner = Finetuner(
-                    args,
-                    student_model, teacher_model,
-                    train_loader, test_loader,
-                )
-                finetuner.train()
-                self.save_torch_model(student_model)
-            else:
-                raise RuntimeError(f'unknown transformation: {method}')
-        except Exception as e:
-            self.logger.error(f'gen_model error: {self.__str__()}')
-            import traceback
-            traceback.print_exc()
+            finetuner = Finetuner(
+                args,
+                student_model, teacher_model,
+                train_loader, test_loader,
+            )
+            finetuner.train()
+            self.save_torch_model(student_model)
+        else:
+            raise RuntimeError(f'unknown transformation: {method}')
 
     def transfer(self, dataset_id, tune_ratio=0.1, iters=TRANSFER_ITERS):
         trans_str = f'transfer({dataset_id},{tune_ratio})'

@@ -30,7 +30,6 @@ from model.fe_resnet import feresnet18, feresnet50, feresnet101
 from model.fe_mobilenet import fembnetv2
 from model.fe_vgg16 import *
 
-
 from utils import *
 
 
@@ -82,7 +81,6 @@ class Finetuner(object):
                     module.register_forward_hook(record_act)
                     print(name, module)
         
-
         # Stored pre-trained weights for computing L2SP
         for m in model.modules():
             if hasattr(m, 'weight') and not hasattr(m, 'old_weight'):
@@ -121,9 +119,7 @@ class Finetuner(object):
         # Check self.model
         # st()
 
-    def compute_steal_loss(
-        self, batch, label, 
-    ):
+    def compute_steal_loss(self, batch, label):
         def CXE(predicted, target):
             return -(target * torch.log(predicted)).sum(dim=1).mean()
         model = self.model
@@ -156,11 +152,7 @@ class Finetuner(object):
         return KD_loss, top1, soft_loss, hard_loss
 
         
-    def compute_loss(
-        self, 
-        batch, label,
-        ce, featloss,
-    ):
+    def compute_loss(self, batch, label, ce, featloss):
         model = self.model
         teacher = self.teacher
         args = self.args
@@ -233,7 +225,6 @@ class Finetuner(object):
                 batch, label = batch.to('cuda'), label.to('cuda')
                 total += batch.size(0)
                 
-                
                 teacher_out = teacher(batch)
                 out = model(batch)
                 _, pred = out.max(dim=1)
@@ -252,7 +243,7 @@ class Finetuner(object):
                 
         return float(top1)/total*100, total_kd/(i+1), total_soft/(i+1), total_hard/(i+1)
         
-    def test(self, ):
+    def test(self):
         model = self.model
         teacher = self.teacher
         loader = self.test_loader
@@ -314,18 +305,18 @@ class Finetuner(object):
         
         if ft_ratio:
             all_params = [param for param in model.parameters()]
-            all_names = [name for name, _ in model.named_parameters()]
             num_tune_params = int(len(all_params) * ft_ratio)
             for v in all_params[-num_tune_params:]:
                 parameters.append({'params': v})
-            
-            with open(osp.join(self.args.output_dir, "finetune.log"), "w") as f:
-                f.write(f"Fixed layers:\n")
-                for name in all_names[:-num_tune_params]:
-                    f.write(name+"\n")
-                f.write(f"\n\nFinetuned layers:\n")
-                for name in all_names[-num_tune_params:]:
-                    f.write(name+"\n")
+
+            # all_names = [name for name, _ in model.named_parameters()]
+            # with open(osp.join(self.args.output_dir, "finetune.log"), "w") as f:
+            #     f.write(f"Fixed layers:\n")
+            #     for name in all_names[:-num_tune_params]:
+            #         f.write(name+"\n")
+            #     f.write(f"\n\nFinetuned layers:\n")
+            #     for name in all_names[-num_tune_params:]:
+            #         f.write(name+"\n")
             return parameters
 
         if not ft_begin_module:
@@ -345,7 +336,7 @@ class Finetuner(object):
 
         return parameters
             
-    def train(self, ):
+    def train(self):
         model = self.model
         train_loader = self.train_loader
         test_loader = self.test_loader
