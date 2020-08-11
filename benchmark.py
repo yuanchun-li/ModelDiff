@@ -198,6 +198,7 @@ class ModelWrapper:
             args.network = self.arch_id
             args.ft_ratio = 1
             args.reinit = True
+            args.lr = 1e-2
 
             torch_model = self.load_saved_weights(torch_model)  # continue training
             finetuner = Finetuner(
