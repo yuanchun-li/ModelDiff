@@ -41,6 +41,7 @@ PRUNE_ITERS = 30000
 DISTILL_ITERS = 30000
 STEAL_ITERS = 30000
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+CONTINUE_TRAIN = False  # whether to continue previous training
 
 # for debug
 # TRANSFER_ITERS = 100
@@ -203,7 +204,8 @@ class ModelWrapper:
             args.reinit = True
             args.lr = 1e-2
 
-            torch_model = self.load_saved_weights(torch_model)  # continue training
+            if CONTINUE_TRAIN:
+                torch_model = self.load_saved_weights(torch_model)  # continue training
             finetuner = Finetuner(
                 args,
                 torch_model, torch_model,
@@ -225,7 +227,8 @@ class ModelWrapper:
             args.network = self.arch_id
             args.ft_ratio = tune_ratio
 
-            student_model = self.load_saved_weights(student_model)  # continue training
+            if CONTINUE_TRAIN:
+                student_model = self.load_saved_weights(student_model)  # continue training
             finetuner = Finetuner(
                 args,
                 student_model, teacher_model,
@@ -246,6 +249,9 @@ class ModelWrapper:
             args.method = "weight"
             args.weight_ratio = prune_ratio
 
+            if CONTINUE_TRAIN:
+                student_model = self.load_saved_weights(student_model)  # continue training
+
             finetuner = Finetuner(
                 args,
                 student_model, teacher_model,
@@ -260,6 +266,9 @@ class ModelWrapper:
             )
             args.network = self.arch_id
             args.feat_lmda = 5e0
+
+            if CONTINUE_TRAIN:
+                student_model = self.load_saved_weights(student_model)  # continue training
 
             finetuner = Finetuner(
                 args,
@@ -281,6 +290,9 @@ class ModelWrapper:
             args.steal_alpha = 1
             args.temperature = 1
 
+            if CONTINUE_TRAIN:
+                student_model = self.load_saved_weights(student_model)  # continue training
+                
             finetuner = Finetuner(
                 args,
                 student_model, teacher_model,
