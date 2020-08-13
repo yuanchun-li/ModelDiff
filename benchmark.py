@@ -36,7 +36,7 @@ INPUT_SHAPE = (224, 224, 3)
 BATCH_SIZE = 64
 TRAIN_ITERS = 100000    # TODO update the number of iterations
 TRANSFER_ITERS = 30000
-QUANTIZATION_ITERS = 30000  # may be useless
+QUANTIZE_ITERS = 30000  # may be useless
 PRUNE_ITERS = 30000
 DISTILL_ITERS = 30000
 STEAL_ITERS = 30000
@@ -148,6 +148,67 @@ class ModelWrapper:
         else:
             self.logger.info('load_saved_weights: no previous checkpoint found')
         return torch_model
+
+    @lazy_property
+    def input_shape(self):
+        return INPUT_SHAPE
+
+    def get_seed_inputs(self, n):
+        train_loader = self.benchmark.get_dataloader(
+            self.dataset_id, split='train', batch_size=n, shuffle=True)
+        images, labels = next(iter(train_loader))
+        return images
+
+    def batch_forward(self, inputs):
+        with torch.no_grad():
+            model = self.torch_model
+            model.eval()
+            return model(inputs)
+
+    def list_tensors(self):
+        pass
+
+    def batch_forward_with_ir(self, inputs):
+        idx = 0
+        def register_fixir_hooks(module):
+            def hook(module, input, output):
+                module_name = f"{class_name}/{idx:03d}"
+                idx += 1
+                # print(module_name)
+                if target_layer in module_name and ir_predicts is not None:
+                if len(output.shape) != 4:
+                    return
+                module_ir_predicts = get_module_ir(module_name)
+                module_ir = output.mean(axis=(2,3))
+                if module_ir_predicts.size() != module_ir.size():
+                    print(f"[warning] ir size does not match: {module_ir_predicts.size()} and {module_ir.size()}")
+                scale_ratio = module_ir_predicts / (module_ir + 0.01)
+                new_output = output * scale_ratio[:,:,None,None]
+                return new_output.detach()
+
+            if len(list(module.children())) == 0:
+                handle = module.register_forward_hook(hook)
+                ir_handles.append(handle)
+
+        def remove_fixir_hooks():
+        for h in ir_handles:
+            h.remove()
+
+        def loopy_inference(net, feedback_net, inputs):
+        outputs = net(inputs)
+        for i in range(100):
+            outputs.detach()
+            global ir_predicts, idx
+            ir_predicts = feedback_net(outputs)
+            idx = 0
+            net.apply(register_fixir_hooks)
+            try:
+            outputs = net(inputs)
+            except Exception as e:
+            print(e)
+            remove_fixir_hooks()
+        # print(outputs.cpu().detach().squeeze().numpy())
+        return outputs
 
     def gen_model(self, regenerate=False):
         """
@@ -395,7 +456,7 @@ class ImageBenchmark:
         # self.datasets = ['MIT67']
         # self.archs = ['resnet18']
 
-    def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shot=-1):
+    def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shuffle=True, shot=-1):
         """
         Get the torch Dataset object
         :param dataset_id: the name of the dataset, should also be the dir name and the class name
@@ -432,7 +493,7 @@ class ImageBenchmark:
 
             data_loader = torch.utils.data.DataLoader(
                 dataset,
-                batch_size=batch_size, shuffle=True,
+                batch_size=batch_size, shuffle=shuffle,
                 num_workers=8, pin_memory=False
             )
             return data_loader
