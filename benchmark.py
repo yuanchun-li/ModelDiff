@@ -137,6 +137,10 @@ class ModelWrapper:
         ckpt = torch.load(os.path.join(self.torch_model_path, 'final_ckpt.pth'))
         torch_model.load_state_dict(ckpt['state_dict'])
         return torch_model
+    
+    @lazy_property
+    def torch_model_on_device(self):
+        return self.torch_model.to(DEVICE)
 
     def load_saved_weights(self, torch_model):
         """
@@ -160,18 +164,19 @@ class ModelWrapper:
             batch_input_size = (n, *INPUT_SHAPE)
             images = np.random.normal(size=batch_input_size).astype(np.float32)
         else:
+            dataset_id = 'MIT67' if self.dataset_id == 'ImageNet' else self.dataset_id
             train_loader = self.benchmark.get_dataloader(
-                self.dataset_id, split='train', batch_size=n, shuffle=True)
+                dataset_id, split='train', batch_size=n, shuffle=True)
             images, labels = next(iter(train_loader))
         return images
 
-    def batch_forward(self, inputs, device=DEVICE):
+    def batch_forward(self, inputs):
         if isinstance(inputs, np.ndarray):
             inputs = torch.from_numpy(inputs)
-        inputs = inputs.to(device)
-        model = self.torch_model.to(device)
+        inputs = inputs.to(DEVICE)
+        self.torch_model_on_device.eval()
         with torch.no_grad():
-            return model(inputs)
+            return self.torch_model_on_device(inputs)
 
     def list_tensors(self):
         pass

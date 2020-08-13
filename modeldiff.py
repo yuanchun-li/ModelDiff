@@ -46,14 +46,14 @@ class ModelDiff(ModelComparison):
         self.input_shape = model1.input_shape
         if list(model1.input_shape) != list(model2.input_shape):
             self.logger.warning('input shapes do not match')
-        self.gen_inputs = gen_inputs if gen_inputs else ModelDiff._gen_profiling_inputs_none
-        self.input_metrics = input_metrics if input_metrics else ModelDiff.metrics_output_range
+        self.gen_inputs = gen_inputs if gen_inputs else ModelDiff._gen_profiling_inputs_search
+        self.input_metrics = input_metrics if input_metrics else ModelDiff.metrics_output_diversity
         self.compute_decision_dist = compute_decision_dist if compute_decision_dist else ModelDiff._compute_decision_dist_output_cos
         self.compare_ddv = compare_ddv if compare_ddv else ModelDiff._compare_ddv_cos
 
     def compare(self, use_torch=True):
         self.logger.info(f'generating seed inputs')
-        rand = True
+        rand = False
         seed_inputs = np.concatenate([
             self.model1.get_seed_inputs(self.N_INPUT_PAIRS, rand=rand),
             self.model2.get_seed_inputs(self.N_INPUT_PAIRS, rand=rand)
@@ -81,11 +81,15 @@ class ModelDiff(ModelComparison):
         input_metrics_2 = self.input_metrics(self.model2, profiling_inputs, use_torch=use_torch)
         self.logger.info(f'  input metrics: model1={input_metrics_1} model2={input_metrics_2}')
 
+        model_similarity = self._compute_distance(profiling_inputs)
+        return model_similarity
+    
+    def _compute_distance(self, profiling_inputs):
         self.logger.info(f'computing DDVs')
         ddv1 = []  # DDV is short for decision distance vector
         ddv2 = []
-        profiling_outputs_1 = self.model1.batch_forward(profiling_inputs, device=DEVICE)
-        profiling_outputs_2 = self.model2.batch_forward(profiling_inputs, device=DEVICE)
+        profiling_outputs_1 = self.model1.batch_forward(profiling_inputs)
+        profiling_outputs_2 = self.model2.batch_forward(profiling_inputs)
         self.logger.debug(
             f'{self.model1}: \n profiling_outputs_1={profiling_outputs_1.shape}\n{profiling_outputs_1}\n'
             f'{self.model2}: \n profiling_outputs_2={profiling_outputs_2.shape}\n{profiling_outputs_2}'
@@ -120,21 +124,20 @@ class ModelDiff(ModelComparison):
 
     @staticmethod
     def metrics_output_diversity(model, inputs, use_torch=False):
-        outputs = model.batch_forward(inputs)
-        output_dists = []
-        for i in range(0, len(outputs) - 1):
-            for j in range(i + 1, len(outputs)):
-                if use_torch:
-                    output_dist = torch.cdist(outputs[i], outputs[j], p=2.0)
-                else:
-                    output_dist = spatial.distance.euclidean(outputs[i], outputs[j])
-                output_dists.append(output_dist)
-        diversity = sum(output_dists) / len(output_dists)
+        outputs = model.batch_forward(inputs).to('cpu').numpy()
+#         output_dists = []
+#         for i in range(0, len(outputs) - 1):
+#             for j in range(i + 1, len(outputs)):
+#                 output_dist = spatial.distance.euclidean(outputs[i], outputs[j])
+#                 output_dists.append(output_dist)
+#         diversity = sum(output_dists) / len(output_dists)
+        output_dists = spatial.distance.cdist(list(outputs), list(outputs), p=2.0)
+        diversity = np.mean(output_dists)
         return diversity
 
     @staticmethod
     def metrics_output_variance(model, inputs, use_torch=False):
-        batch_output = model.batch_forward(inputs)
+        batch_output = model.batch_forward(inputs).to('cpu').numpy()
         mean_axis = tuple(list(range(len(batch_output.shape)))[2:])
         batch_output_mean = np.mean(batch_output, axis=mean_axis)
         # print(batch_output_mean.shape)
@@ -144,13 +147,10 @@ class ModelDiff(ModelComparison):
 
     @staticmethod
     def metrics_output_range(model, inputs, use_torch=False):
-        batch_output = model.batch_forward(inputs)
+        batch_output = model.batch_forward(inputs).to('cpu').numpy()
         mean_axis = tuple(list(range(len(batch_output.shape)))[2:])
         batch_output_mean = np.mean(batch_output, axis=mean_axis)
-        # print(batch_output_mean.shape)
         output_ranges = np.max(batch_output_mean, axis=0) - np.min(batch_output_mean, axis=0)
-        # print(output_ranges.shape)
-        # print(output_variances)
         return np.mean(output_ranges)
 
     @staticmethod
@@ -200,29 +200,73 @@ class ModelDiff(ModelComparison):
     #         yield x
 
     @staticmethod
-    def _gen_profiling_inputs_search(comparator, seed_inputs, use_torch=False):
+    def _gen_profiling_inputs_search(comparator, seed_inputs, use_torch=False, epsilon=0.2):
         input_shape = seed_inputs[0].shape
-        max_iterations = 10
+        max_iterations = 1000
         max_steps = 10
+        model1 = comparator.model1
+        model2 = comparator.model2
+        
+        ndims = np.prod(input_shape)
+#         mutate_positions = torch.randperm(ndims)
 
-        initial_outputs_1 = comparator.model1.batch_forward(seed_inputs)
-        initial_outputs_2 = comparator.model2.batch_forward(seed_inputs)
+        initial_outputs1 = model1.batch_forward(seed_inputs).to('cpu').numpy()
+        initial_outputs2 = model2.batch_forward(seed_inputs).to('cpu').numpy()
+        
+        def evaluate_inputs(inputs):
+            outputs1 = model1.batch_forward(inputs).to('cpu').numpy()
+            outputs2 = model2.batch_forward(inputs).to('cpu').numpy()
+            metrics1 = comparator.input_metrics(comparator.model1, inputs)
+            metrics2 = comparator.input_metrics(comparator.model2, inputs)
 
+            output_dist1 = np.mean(spatial.distance.cdist(
+                list(outputs1),
+                list(initial_outputs1),
+                p=2).diagonal())
+            output_dist2 = np.mean(spatial.distance.cdist(
+                list(outputs2),
+                list(initial_outputs2),
+                p=2).diagonal())
+            print(f'  output distance: {output_dist1},{output_dist2}')
+            print(f'  metrics: {metrics1},{metrics2}')
+            # if mutated_metrics <= metrics:
+            #     break
+            return output_dist1 * output_dist2 * metrics1 * metrics2
+        
+        inputs = seed_inputs
+        score = evaluate_inputs(inputs)
+        print(f'score={score}')
+        
         for i in range(max_iterations):
-            metrics = comparator.input_metrics(comparator.model1, list(inputs))
-            # mutation_idx = random.randint(0, len(inputs))
-            mutation_perturbation = np.random.random_sample(size=seed_inputs.shape).astype(np.float32)
-            # print(f'{inputs.shape} {mutation_perturbation.shape}')
+            comparator._compute_distance(inputs)
             print(f'mutation {i}-th iteration')
-            for j in range(max_steps):
-                mutated_inputs = inputs + mutation_perturbation
+            # mutation_idx = random.randint(0, len(inputs))
+            # mutation = np.random.random_sample(size=input_shape).astype(np.float32)
+            
+            mutation_pos = np.random.randint(0, ndims)
+            mutation = np.zeros(ndims).astype(np.float32)
+            mutation[mutation_pos] = epsilon
+            mutation = np.reshape(mutation, input_shape)
+            
+            # print(f'{inputs.shape} {mutation_perturbation.shape}')
+            # for j in range(max_steps):
+                # mutated_inputs = np.clip(inputs + mutation, 0, 1)
                 # print(f'{list(inputs)[0].shape}')
-                mutated_metrics = comparator.input_metrics(comparator.model1, list(inputs))
-                print(f'  metrics: {metrics} -> {mutated_metrics}')
-                # if mutated_metrics <= metrics:
-                #     break
-                metrics = mutated_metrics
-                inputs = mutated_inputs
+            mutate_right_inputs = inputs + mutation
+            mutate_right_score = evaluate_inputs(mutate_right_inputs)
+            mutate_left_inputs = inputs - mutation
+            mutate_left_score = evaluate_inputs(mutate_left_inputs)
+            
+            if mutate_right_score <= score and mutate_left_score <= score:
+                continue
+            if mutate_right_score > mutate_left_score:
+                print(f'mutate right: {score}->{mutate_right_score}')
+                inputs = mutate_right_inputs
+                score = mutate_right_score
+            else:
+                print(f'mutate left: {score}->{mutate_left_score}')
+                inputs = mutate_left_inputs
+                score = mutate_left_score
         return inputs
         
     @staticmethod
