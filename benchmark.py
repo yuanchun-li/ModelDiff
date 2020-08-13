@@ -170,45 +170,32 @@ class ModelWrapper:
 
     def batch_forward_with_ir(self, inputs):
         idx = 0
+        ir_handles = []
+        tensor_ir = {}
+        model = self.torch_model
+
         def register_fixir_hooks(module):
             def hook(module, input, output):
+                global idx
+                class_name = str(module.__class__).split(".")[-1].split("'")[0]
                 module_name = f"{class_name}/{idx:03d}"
                 idx += 1
-                # print(module_name)
-                if target_layer in module_name and ir_predicts is not None:
-                if len(output.shape) != 4:
-                    return
-                module_ir_predicts = get_module_ir(module_name)
-                module_ir = output.mean(axis=(2,3))
-                if module_ir_predicts.size() != module_ir.size():
-                    print(f"[warning] ir size does not match: {module_ir_predicts.size()} and {module_ir.size()}")
-                scale_ratio = module_ir_predicts / (module_ir + 0.01)
-                new_output = output * scale_ratio[:,:,None,None]
-                return new_output.detach()
+                tensor_ir[module_name] = output
 
             if len(list(module.children())) == 0:
                 handle = module.register_forward_hook(hook)
                 ir_handles.append(handle)
 
         def remove_fixir_hooks():
-        for h in ir_handles:
-            h.remove()
+            for h in ir_handles:
+                h.remove()
 
-        def loopy_inference(net, feedback_net, inputs):
-        outputs = net(inputs)
-        for i in range(100):
-            outputs.detach()
-            global ir_predicts, idx
-            ir_predicts = feedback_net(outputs)
-            idx = 0
-            net.apply(register_fixir_hooks)
-            try:
-            outputs = net(inputs)
-            except Exception as e:
-            print(e)
+        model.eval()
+        with torch.no_grad():
+            model.apply(register_fixir_hooks)
+            outputs = model(inputs)
             remove_fixir_hooks()
-        # print(outputs.cpu().detach().squeeze().numpy())
-        return outputs
+        return tensor_ir
 
     def gen_model(self, regenerate=False):
         """
