@@ -53,9 +53,9 @@ class ProgressMeter(object):
         entries += [str(meter) for meter in self.meters]
         log_str = '\t'.join(entries)
         print(log_str)
-        if self.filepath is not None:
-            with open(self.filepath, "a") as f:
-                f.write(log_str+"\n")
+        # if self.filepath is not None:
+        #     with open(self.filepath, "a") as f:
+        #         f.write(log_str+"\n")
 
     def _get_batch_fmtstr(self, num_batches):
         num_digits = len(str(num_batches // 1))
