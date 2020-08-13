@@ -32,7 +32,7 @@ from finetuner import Finetuner
 
 
 SEED = 98
-INPUT_SHAPE = (224, 224, 3)
+INPUT_SHAPE = (3, 224, 224)
 BATCH_SIZE = 64
 TRAIN_ITERS = 100000    # TODO update the number of iterations
 TRANSFER_ITERS = 30000
@@ -125,6 +125,8 @@ class ModelWrapper:
         """
         if self.dataset_id == 'ImageNet':
             num_classes = 1000
+        elif self.dataset_id == 'MIT67':
+            num_classes = 67
         else:
             num_classes = self.benchmark.get_dataloader(self.dataset_id).dataset.num_classes
         torch_model = eval(f'{self.arch_id}_dropout')(
@@ -153,49 +155,55 @@ class ModelWrapper:
     def input_shape(self):
         return INPUT_SHAPE
 
-    def get_seed_inputs(self, n):
-        train_loader = self.benchmark.get_dataloader(
-            self.dataset_id, split='train', batch_size=n, shuffle=True)
-        images, labels = next(iter(train_loader))
+    def get_seed_inputs(self, n, rand=False):
+        if rand:
+            batch_input_size = (n, *INPUT_SHAPE)
+            images = np.random.normal(size=batch_input_size).astype(np.float32)
+        else:
+            train_loader = self.benchmark.get_dataloader(
+                self.dataset_id, split='train', batch_size=n, shuffle=True)
+            images, labels = next(iter(train_loader))
         return images
 
     def batch_forward(self, inputs):
+        if isinstance(inputs, np.ndarray):
+            inputs = torch.from_numpy(inputs)
         with torch.no_grad():
-            model = self.torch_model
-            model.eval()
-            return model(inputs)
+            return self.torch_model(inputs)
 
     def list_tensors(self):
         pass
 
     def batch_forward_with_ir(self, inputs):
+        if isinstance(inputs, np.ndarray):
+            inputs = torch.from_numpy(inputs)
         idx = 0
-        ir_handles = []
-        tensor_ir = {}
+        hook_handles = []
+        module_ir = {}
         model = self.torch_model
 
-        def register_fixir_hooks(module):
+        def register_hooks(module):
             def hook(module, input, output):
                 global idx
                 class_name = str(module.__class__).split(".")[-1].split("'")[0]
                 module_name = f"{class_name}/{idx:03d}"
                 idx += 1
-                tensor_ir[module_name] = output
+                module_ir[module_name] = output.numpy()
 
             if len(list(module.children())) == 0:
                 handle = module.register_forward_hook(hook)
-                ir_handles.append(handle)
+                hook_handles.append(handle)
 
-        def remove_fixir_hooks():
-            for h in ir_handles:
+        def remove_hooks():
+            for h in hook_handles:
                 h.remove()
 
         model.eval()
         with torch.no_grad():
-            model.apply(register_fixir_hooks)
+            model.apply(register_hooks)
             outputs = model(inputs)
-            remove_fixir_hooks()
-        return tensor_ir
+            remove_hooks()
+        return module_ir
 
     def gen_model(self, regenerate=False):
         """
@@ -443,7 +451,7 @@ class ImageBenchmark:
         # self.datasets = ['MIT67']
         # self.archs = ['resnet18']
 
-    def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shuffle=True, shot=-1):
+    def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shuffle=True, seed=SEED, shot=-1):
         """
         Get the torch Dataset object
         :param dataset_id: the name of the dataset, should also be the dir name and the class name

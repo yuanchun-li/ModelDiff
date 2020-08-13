@@ -46,8 +46,6 @@ class ProgressMeter(object):
         if output_dir is not None:
             self.filepath = osp.join(output_dir, "progress")
 
-            
-
     def display(self, batch):
         entries = [self.prefix + self.batch_fmtstr.format(batch)]
         entries += [str(meter) for meter in self.meters]
@@ -85,6 +83,7 @@ def linear_l2(model, beta_lmda):
             beta_loss += (m.bias).pow(2).sum()
     return 0.5*beta_loss*beta_lmda, beta_loss
 
+
 def l2sp(model, reg):
     reg_loss = 0
     dist = 0
@@ -104,6 +103,7 @@ def l2sp(model, reg):
     
     loss = (reg * reg_loss)
     return loss, dist
+
 
 def advtest_fast(model, loader, adversary, args):
     advDataset = torch.load(args.adv_data_dir)

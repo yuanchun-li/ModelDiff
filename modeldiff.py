@@ -129,34 +129,45 @@ class ModelDiff(ModelComparison):
     def __init__(self, model1, model2, gen_inputs=None, input_metrics=None, compute_decision_dist=None, compare_ddv=None):
         super().__init__(model1, model2)
         self.logger = logging.getLogger('ModelDiff')
+        self.logger.info(f'comparing {model1} and {model2}')
         self.logger.debug(f'initialize comparison: {self.model1} {self.model2}')
         self.logger.debug(f'input shapes: {self.model1.input_shape} {self.model2.input_shape}')
         self.input_shape = model1.input_shape
         if list(model1.input_shape) != list(model2.input_shape):
             self.logger.warning('input shapes do not match')
-        self.gen_inputs = gen_inputs if gen_inputs else ModelDiff._gen_profiling_inputs_search
+        self.gen_inputs = gen_inputs if gen_inputs else ModelDiff._gen_profiling_inputs_none
         self.input_metrics = input_metrics if input_metrics else ModelDiff.metrics_output_range
         self.compute_decision_dist = compute_decision_dist if compute_decision_dist else ModelDiff._compute_decision_dist_output_cos
         self.compare_ddv = compare_ddv if compare_ddv else ModelDiff._compare_ddv_cos
 
     def compare(self):
         self.logger.info(f'generating profiling inputs')
-        seed_inputs = self.model1.get_seed_inputs(self.N_INPUT_PAIRS) + self.model2.get_seed_inputs(self.N_INPUT_PAIRS)
-        random.shuffle(seed_inputs)
-        inputs = list(self.gen_inputs(self, seed_inputs))
-        batch_inputs = np.array(inputs)
-        batch_outputs_1 = self.model1.batch_forward(batch_inputs)
-        batch_outputs_2 = self.model2.batch_forward(batch_inputs)
-        self.logger.info(f'batch_outputs_1={batch_outputs_1}\nbatch_outputs_2={batch_outputs_2}')
+        rand = True
+        seed_inputs = np.concatenate([
+            self.model1.get_seed_inputs(self.N_INPUT_PAIRS, rand=rand),
+            self.model2.get_seed_inputs(self.N_INPUT_PAIRS, rand=rand)
+        ])
+        seed_inputs = list(seed_inputs)
+        np.random.shuffle(seed_inputs)
+        seed_inputs = np.array(seed_inputs)
+        profiling_inputs = self.gen_inputs(self, seed_inputs)
+        profiling_outputs_1 = self.model1.batch_forward(profiling_inputs)
+        profiling_outputs_2 = self.model2.batch_forward(profiling_inputs)
+        self.logger.info(
+            f'{self.model1}: \n profiling_outputs_1={profiling_outputs_1.shape}\n{profiling_outputs_1}\n'
+            f'{self.model2}: \n profiling_outputs_2={profiling_outputs_2.shape}\n{profiling_outputs_2}'
+        )
 
         input_pairs = []
-        for i in range(int(len(inputs) / 2)):
-            xa = inputs[2 * i]
-            xb = inputs[2 * i + 1]
+        for i in range(int(len(profiling_inputs) / 2)):
+            xa = profiling_inputs[2 * i]
+            xb = profiling_inputs[2 * i + 1]
+            xa = np.expand_dims(xa, axis=0)
+            xb = np.expand_dims(xb, axis=0)
             input_pairs.append((xa, xb))
 
-        input_metrics_1 = self.input_metrics(self.model1, inputs)
-        input_metrics_2 = self.input_metrics(self.model2, inputs)
+        input_metrics_1 = self.input_metrics(self.model1, profiling_inputs)
+        input_metrics_2 = self.input_metrics(self.model2, profiling_inputs)
         self.logger.info(f'input metrics: model1={input_metrics_1} model2={input_metrics_2}')
 
         self.logger.info(f'computing DDVs')
@@ -164,8 +175,15 @@ class ModelDiff(ModelComparison):
         ddv2 = []
         for i, (xa, xb) in enumerate(input_pairs):
             # self.logger.info(f'generated input pair:\n{xa}\n{xb}')
-            dist1 = self.compute_decision_dist(self.model1, xa, xb)
-            dist2 = self.compute_decision_dist(self.model2, xa, xb)
+            y1a = profiling_outputs_1[2 * i]
+            y1b = profiling_outputs_1[2 * i + 1]
+            dist1 = spatial.distance.cosine(y1a, y1b)
+
+            y2a = profiling_outputs_2[2 * i]
+            y2b = profiling_outputs_1[2 * i + 1]
+            dist2 = spatial.distance.cosine(y2a, y2b)
+            # dist1 = self.compute_decision_dist(self.model1, xa, xb)
+            # dist2 = self.compute_decision_dist(self.model2, xa, xb)
             # self.logger.debug(f'computed distances: {dist1} {dist2}')
             ddv1.append(dist1)
             ddv2.append(dist2)
@@ -181,16 +199,9 @@ class ModelDiff(ModelComparison):
         self.logger.info(f'model similarity is {model_similarity}')
         return model_similarity
 
-    def test_input_generators(self):
-        seed_inputs = self.model1.get_seed_inputs(self.N_INPUT_PAIRS) + self.model2.get_seed_inputs(self.N_INPUT_PAIRS)
-        inputs = ModelDiff._gen_profiling_inputs_none(self, seed_inputs)
-
     @staticmethod
     def metrics_output_diversity(model, inputs):
-        outputs = []
-        for i in inputs:
-            output = model.forward(i)
-            outputs.append(output)
+        outputs = model.batch_forward(inputs).numpy()
         output_dists = []
         for i in range(0, len(outputs) - 1):
             for j in range(i + 1, len(outputs)):
@@ -201,14 +212,8 @@ class ModelDiff(ModelComparison):
 
     @staticmethod
     def metrics_output_variance(model, inputs):
-        outputs = []
-        for i in inputs:
-            output = model.forward(i)
-            outputs.append(output)
-        batch_output = np.array(outputs)
-
-        # print(batch_output.shape)
-        mean_axis = tuple(list(range(len(batch_output.shape)))[1:-1])
+        batch_output = model.batch_forward(inputs)
+        mean_axis = tuple(list(range(len(batch_output.shape)))[2:])
         batch_output_mean = np.mean(batch_output, axis=mean_axis)
         # print(batch_output_mean.shape)
         output_variances = np.var(batch_output_mean, axis=0)
@@ -217,79 +222,43 @@ class ModelDiff(ModelComparison):
 
     @staticmethod
     def metrics_output_range(model, inputs):
-        outputs = []
-        for i in inputs:
-            output = model.forward(i)
-            outputs.append(output)
-        batch_output = np.array(outputs)
-
-        # print(batch_output.shape)
-        mean_axis = tuple(list(range(len(batch_output.shape)))[1:-1])
+        batch_output = model.batch_forward(inputs).numpy()
+        mean_axis = tuple(list(range(len(batch_output.shape)))[2:])
         batch_output_mean = np.mean(batch_output, axis=mean_axis)
         # print(batch_output_mean.shape)
         output_ranges = np.max(batch_output_mean, axis=0) - np.min(batch_output_mean, axis=0)
+        print(output_ranges.shape)
         # print(output_variances)
         return np.prod(output_ranges)
 
     @staticmethod
     def metrics_neuron_coverage(model, inputs):
-        outputs = []
-        tensor_values_list = []
-        # print(model.list_tensors)
-        for i in inputs:
-            output = model.forward(i)
-            outputs.append(output)
-            tensor_values = model.get_tensor_values()
-            tensor_values_list.append(tensor_values)
-        batch_tensor_values = []
-        for i, (tensor, _) in enumerate(tensor_values_list[0]):
-            batch_tensor_value = []
-            for tensor_values in tensor_values_list:
-                # print(f'{tensor["name"]} - {tensor_values[i][0]["name"]}')
-                assert tensor["index"] == tensor_values[i][0]["index"]
-                batch_tensor_value.append(tensor_values[i][1])
-            batch_tensor_value = np.array(batch_tensor_value)
-            batch_tensor_values.append((tensor, batch_tensor_value))
-
+        module_irs = model.batch_forward_with_ir(inputs)
         neurons = []
         neurons_covered = []
-        for tensor, batch_tensor_value in batch_tensor_values:
+        for module in module_irs:
+            ir = module_irs[module]
             # print(f'{tensor["name"]} {batch_tensor_value.shape}')
             # if 'relu' not in tensor["name"].lower():
             #     continue
-            squeeze_axis = tuple(list(range(len(batch_tensor_value.shape)))[:-1])
-            squeezed_tensor_value = np.max(batch_tensor_value, axis=squeeze_axis)
-            for i in range(batch_tensor_value.shape[-1]):
-                neuron_name = f'{tensor["name"]}-{i}'
+            squeeze_axis = tuple(list(range(len(ir.shape)))[:-1])
+            squeeze_ir = np.max(ir, axis=squeeze_axis)
+            for i in range(squeeze_ir.shape[-1]):
+                neuron_name = f'{module}-{i}'
                 neurons.append(neuron_name)
-                neuron_value = squeezed_tensor_value[i]
+                neuron_value = squeeze_ir[i]
                 covered = neuron_value > 0.1
                 if covered:
                     neurons_covered.append(neuron_name)
         neurons_not_covered = [neuron for neuron in neurons if neuron not in neurons_covered]
-        print(f'{len(neurons_not_covered)} neurons_not_covered: {neurons_not_covered}')
+        print(f'{len(neurons_not_covered)} neurons not covered: {neurons_not_covered}')
         return float(len(neurons_covered)) / len(neurons)
 
     @staticmethod
     def _compute_decision_dist_output_cos(model, xa, xb):
-        ya = model.forward(xa)
-        yb = model.forward(xb)
+        ya = model.batch_forward(xa)
+        yb = model.batch_forward(xb)
         return spatial.distance.cosine(ya, yb)
-
-    # def gen_profiling_inputs(self, n):
-    #     inputs = list(self._gen_profiling_inputs_random(n))
-    #     diversity1 = self.model1.get_diversity(inputs)
-    #     diversity2 = self.model2.get_diversity(inputs)
-    #     print(f'_gen_profiling_inputs_random inputs diversity: {diversity1} {diversity2}')
-    #     inputs = list(self._gen_profiling_inputs_same(n))
-    #     diversity1 = self.model1.get_diversity(inputs)
-    #     diversity2 = self.model2.get_diversity(inputs)
-    #     print(f'_gen_profiling_inputs_same inputs diversity: {diversity1} {diversity2}')
-    #     inputs = list(self._gen_profiling_inputs_1pixel(n))
-    #     diversity1 = self.model1.get_diversity(inputs)
-    #     diversity2 = self.model2.get_diversity(inputs)
-    #     print(f'_gen_profiling_inputs_1pixel inputs diversity: {diversity1} {diversity2}')
-    #     return inputs
 
     @staticmethod
     def _gen_profiling_inputs_none(comparator, seed_inputs):
@@ -297,20 +266,16 @@ class ModelDiff(ModelComparison):
 
     @staticmethod
     def _gen_profiling_inputs_random(comparator, seed_inputs):
-        input_shape = seed_inputs[0].shape
-        inputs = []
-        for i in range(len(seed_inputs)):
-            inputs.append(np.random.normal(size=input_shape).astype(np.float32))
-        return inputs
+        return np.random.normal(size=seed_inputs.shape).astype(np.float32)
 
     # @staticmethod
-    #     # def _gen_profiling_inputs_1pixel(comparator, seed_inputs):
-    #     #     input_shape = seed_inputs[0].shape
-    #     #     for i in range(len(seed_inputs)):
-    #     #         x = np.zeros(input_shape, dtype=np.float32)
-    #     #         random_index = np.unravel_index(np.argmax(np.random.normal(size=input_shape)), input_shape)
-    #     #         x[random_index] = 1
-    #     #         yield x
+    # def _gen_profiling_inputs_1pixel(comparator, seed_inputs):
+    #     input_shape = seed_inputs[0].shape
+    #     for i in range(len(seed_inputs)):
+    #         x = np.zeros(input_shape, dtype=np.float32)
+    #         random_index = np.unravel_index(np.argmax(np.random.normal(size=input_shape)), input_shape)
+    #         x[random_index] = 1
+    #         yield x
 
     @staticmethod
     def _gen_profiling_inputs_search(comparator, seed_inputs):
@@ -394,9 +359,9 @@ def main():
     for model_wrapper in bench.list_models():
         if not model_wrapper.torch_model_exists():
             continue
-        if model_wrapper.__str__() in args.model1:
+        if model_wrapper.__str__() == args.model1:
             model1 = model_wrapper
-        if model_wrapper.__str__() in args.model2:
+        if model_wrapper.__str__() == args.model2:
             model2 = model_wrapper
         model_strs.append(model_wrapper.__str__())
     if model1 is None or model2 is None:
