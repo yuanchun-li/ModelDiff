@@ -13,7 +13,8 @@ def schedule_one_on_one(args):
         model_str_tokens = model_wrapper.__str__().split('-')
         if len(model_str_tokens) >= 2 and model_str_tokens[-2].startswith(args.phase):
             model_str = re.sub(r'[^A-Za-z0-9.]+', '_', model_wrapper.__str__())
-            print(f'{args.prefix} \'-regenerate -mask _{model_str}_\'')
+            # print(f'{args.prefix} \'-regenerate -mask _{model_str}_\'')
+            print(f'{args.prefix} \'-mask _{model_str}_\'')
 
 
 def schedule_all_on_one(args):
