@@ -165,11 +165,13 @@ class ModelWrapper:
             images, labels = next(iter(train_loader))
         return images
 
-    def batch_forward(self, inputs):
+    def batch_forward(self, inputs, device=DEVICE):
         if isinstance(inputs, np.ndarray):
             inputs = torch.from_numpy(inputs)
+        inputs = inputs.to(device)
+        model = self.torch_model.to(device)
         with torch.no_grad():
-            return self.torch_model(inputs)
+            return model(inputs)
 
     def list_tensors(self):
         pass

@@ -10,6 +10,7 @@ import pathlib
 import tempfile
 import copy
 import random
+import torch
 import numpy as np
 import tensorflow as tf
 from scipy import spatial
@@ -18,97 +19,7 @@ from abc import ABC, abstractmethod
 from utils import lazy_property, Utils
 
 
-class Model:
-    def __init__(self, model_path):
-        assert model_path.endswith('.h5') or model_path.endswith('.tflite')
-        self.logger = logging.getLogger('Model')
-        self.model_path = model_path
-        if self.model_path.endswith('h5'):
-            self.tflite_path = self.model_path.replace('.h5', '.tflite')
-            if not os.path.exists(self.tflite_path):
-                keras_model = tf.keras.models.load_model(self.model_path)
-                converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
-                tflite_content = converter.convert()
-                pathlib.Path(self.tflite_path).write_bytes(tflite_content)
-        else:
-            self.tflite_path = self.model_path
-        self.interpreter = tf.lite.Interpreter(model_path=self.tflite_path)
-        self.interpreter.allocate_tensors()
-
-    @lazy_property
-    def _input_details(self):
-        return self.interpreter.get_input_details()
-
-    @lazy_property
-    def _output_details(self):
-        return self.interpreter.get_output_details()
-
-    @lazy_property
-    def input_shape(self):
-        return self._input_details[0]['shape']
-
-    @lazy_property
-    def output_shape(self):
-        return self._output_details[0]['shape']
-
-    @lazy_property
-    def input_index(self):
-        return self._input_details[0]['index']
-
-    @lazy_property
-    def output_index(self):
-        return self._output_details[0]['index']
-
-    @lazy_property
-    def list_tensors(self):
-        """
-        return a list of tensors in the model
-        """
-        return self.interpreter.get_tensor_details()
-
-    def get_seed_inputs(self, n):
-        inputs = []
-        from dataset import MyDataset
-        ds = MyDataset('mnist')
-        for images, labels in ds.test_ds.shuffle(n*10).batch(1).take(n):
-            # print(images.shape)
-            inputs.append(images)
-        # for i in range(n):
-        #     # inputs.append(np.random.normal(loc=0.5, size=self.input_shape).astype(np.float32))
-        #     inputs.append(np.random.random_sample(self.input_shape).astype(np.float32))
-        return inputs
-
-    def forward(self, x):
-        self.interpreter.set_tensor(self.input_index, x)
-        self.interpreter.invoke()
-        # The function `get_tensor()` returns a copy of the tensor data.
-        # Use `tensor()` in order to get a pointer to the tensor.
-        y = self.interpreter.get_tensor(self.output_index)
-        return y
-
-    def batch_forward(self, batch_inputs):
-        outputs = []
-        for i in list(batch_inputs):
-            output = self.forward(i)
-            outputs.append(output)
-        batch_outputs = np.concatenate(outputs)
-        return batch_outputs
-
-    def get_tensor_value(self, tensor):
-        """
-        get the value of a tensor
-        """
-        return self.interpreter.get_tensor(tensor['index'])
-
-    def get_tensor_values(self):
-        """
-        get a list of tensors together with their values
-        """
-        tensor_values = []
-        for tensor in self.list_tensors:
-            tensor_value = self.get_tensor_value(tensor)
-            tensor_values.append((tensor, tensor_value))
-        return tensor_values
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 class ModelComparison(ABC):
@@ -140,8 +51,8 @@ class ModelDiff(ModelComparison):
         self.compute_decision_dist = compute_decision_dist if compute_decision_dist else ModelDiff._compute_decision_dist_output_cos
         self.compare_ddv = compare_ddv if compare_ddv else ModelDiff._compare_ddv_cos
 
-    def compare(self):
-        self.logger.info(f'generating profiling inputs')
+    def compare(self, use_torch=True):
+        self.logger.info(f'generating seed inputs')
         rand = True
         seed_inputs = np.concatenate([
             self.model1.get_seed_inputs(self.N_INPUT_PAIRS, rand=rand),
@@ -150,89 +61,100 @@ class ModelDiff(ModelComparison):
         seed_inputs = list(seed_inputs)
         np.random.shuffle(seed_inputs)
         seed_inputs = np.array(seed_inputs)
-        profiling_inputs = self.gen_inputs(self, seed_inputs)
-        profiling_outputs_1 = self.model1.batch_forward(profiling_inputs)
-        profiling_outputs_2 = self.model2.batch_forward(profiling_inputs)
-        self.logger.info(
-            f'{self.model1}: \n profiling_outputs_1={profiling_outputs_1.shape}\n{profiling_outputs_1}\n'
-            f'{self.model2}: \n profiling_outputs_2={profiling_outputs_2.shape}\n{profiling_outputs_2}'
-        )
+        if use_torch:
+            seed_inputs = torch.from_numpy(seed_inputs)
+        self.logger.info(f'  seed inputs generated with shape {seed_inputs.shape}')
 
-        input_pairs = []
-        for i in range(int(len(profiling_inputs) / 2)):
-            xa = profiling_inputs[2 * i]
-            xb = profiling_inputs[2 * i + 1]
-            xa = np.expand_dims(xa, axis=0)
-            xb = np.expand_dims(xb, axis=0)
-            input_pairs.append((xa, xb))
+        self.logger.info(f'generating profiling inputs')
+        profiling_inputs = self.gen_inputs(self, seed_inputs, use_torch=use_torch)
+        # input_pairs = []
+        # for i in range(int(len(profiling_inputs) / 2)):
+        #     xa = profiling_inputs[2 * i]
+        #     xb = profiling_inputs[2 * i + 1]
+        #     xa = np.expand_dims(xa, axis=0)
+        #     xb = np.expand_dims(xb, axis=0)
+        #     input_pairs.append((xa, xb))
+        self.logger.info(f'  profiling inputs generated with shape {profiling_inputs.shape}')
 
-        input_metrics_1 = self.input_metrics(self.model1, profiling_inputs)
-        input_metrics_2 = self.input_metrics(self.model2, profiling_inputs)
-        self.logger.info(f'input metrics: model1={input_metrics_1} model2={input_metrics_2}')
+        self.logger.info(f'computing metrics')
+        input_metrics_1 = self.input_metrics(self.model1, profiling_inputs, use_torch=use_torch)
+        input_metrics_2 = self.input_metrics(self.model2, profiling_inputs, use_torch=use_torch)
+        self.logger.info(f'  input metrics: model1={input_metrics_1} model2={input_metrics_2}')
 
         self.logger.info(f'computing DDVs')
         ddv1 = []  # DDV is short for decision distance vector
         ddv2 = []
-        for i, (xa, xb) in enumerate(input_pairs):
+        profiling_outputs_1 = self.model1.batch_forward(profiling_inputs, device=DEVICE)
+        profiling_outputs_2 = self.model2.batch_forward(profiling_inputs, device=DEVICE)
+        self.logger.debug(
+            f'{self.model1}: \n profiling_outputs_1={profiling_outputs_1.shape}\n{profiling_outputs_1}\n'
+            f'{self.model2}: \n profiling_outputs_2={profiling_outputs_2.shape}\n{profiling_outputs_2}'
+        )
+        profiling_outputs_1 = profiling_outputs_1.to('cpu').numpy()
+        profiling_outputs_2 = profiling_outputs_2.to('cpu').numpy()
+        for i in range(int(len(profiling_inputs) / 2)):
             # self.logger.info(f'generated input pair:\n{xa}\n{xb}')
             y1a = profiling_outputs_1[2 * i]
             y1b = profiling_outputs_1[2 * i + 1]
-            dist1 = spatial.distance.cosine(y1a, y1b)
+            dist1 = spatial.distance.euclidean(y1a, y1b)
 
             y2a = profiling_outputs_2[2 * i]
-            y2b = profiling_outputs_1[2 * i + 1]
-            dist2 = spatial.distance.cosine(y2a, y2b)
+            y2b = profiling_outputs_2[2 * i + 1]
+            dist2 = spatial.distance.euclidean(y2a, y2b)
             # dist1 = self.compute_decision_dist(self.model1, xa, xb)
             # dist2 = self.compute_decision_dist(self.model2, xa, xb)
             # self.logger.debug(f'computed distances: {dist1} {dist2}')
             ddv1.append(dist1)
             ddv2.append(dist2)
+        ddv1, ddv2 = np.array(ddv1), np.array(ddv2)
+        self.logger.info(f'  DDV computed: shape={ddv1.shape} and {ddv2.shape}')
 
-        self.logger.info(f'comparing DDVs')
+        self.logger.info(f'measuring model similarity')
         ddv1 = Utils.normalize(np.array(ddv1))
         ddv2 = Utils.normalize(np.array(ddv2))
-        self.logger.info(f'ddv1={ddv1}\nddv2={ddv2}')
-        # self.logger.debug(f'model1 ddv:\n{ddv1}')
-        # self.logger.debug(f'model2 ddv:\n{ddv2}')
+        self.logger.debug(f'ddv1={ddv1}\nddv2={ddv2}')
         ddv_distance = self.compare_ddv(ddv1, ddv2)
         model_similarity = 1 - ddv_distance
-        self.logger.info(f'model similarity is {model_similarity}')
+        self.logger.info(f'  model similarity: {model_similarity}')
         return model_similarity
 
     @staticmethod
-    def metrics_output_diversity(model, inputs):
-        outputs = model.batch_forward(inputs).numpy()
+    def metrics_output_diversity(model, inputs, use_torch=False):
+        outputs = model.batch_forward(inputs)
         output_dists = []
         for i in range(0, len(outputs) - 1):
             for j in range(i + 1, len(outputs)):
-                output_dist = spatial.distance.euclidean(outputs[i], outputs[j])
+                if use_torch:
+                    output_dist = torch.cdist(outputs[i], outputs[j], p=2.0)
+                else:
+                    output_dist = spatial.distance.euclidean(outputs[i], outputs[j])
                 output_dists.append(output_dist)
         diversity = sum(output_dists) / len(output_dists)
         return diversity
 
     @staticmethod
-    def metrics_output_variance(model, inputs):
+    def metrics_output_variance(model, inputs, use_torch=False):
         batch_output = model.batch_forward(inputs)
         mean_axis = tuple(list(range(len(batch_output.shape)))[2:])
         batch_output_mean = np.mean(batch_output, axis=mean_axis)
         # print(batch_output_mean.shape)
         output_variances = np.var(batch_output_mean, axis=0)
         # print(output_variances)
-        return np.prod(output_variances)
+        return np.mean(output_variances)
 
     @staticmethod
-    def metrics_output_range(model, inputs):
-        batch_output = model.batch_forward(inputs).numpy()
+    def metrics_output_range(model, inputs, use_torch=False):
+        batch_output = model.batch_forward(inputs)
         mean_axis = tuple(list(range(len(batch_output.shape)))[2:])
         batch_output_mean = np.mean(batch_output, axis=mean_axis)
         # print(batch_output_mean.shape)
         output_ranges = np.max(batch_output_mean, axis=0) - np.min(batch_output_mean, axis=0)
-        print(output_ranges.shape)
+        # print(output_ranges.shape)
         # print(output_variances)
-        return np.prod(output_ranges)
+        return np.mean(output_ranges)
 
     @staticmethod
-    def metrics_neuron_coverage(model, inputs):
+    def metrics_neuron_coverage(model, inputs, use_torch=False):
         module_irs = model.batch_forward_with_ir(inputs)
         neurons = []
         neurons_covered = []
@@ -261,11 +183,11 @@ class ModelDiff(ModelComparison):
         return spatial.distance.cosine(ya, yb)
 
     @staticmethod
-    def _gen_profiling_inputs_none(comparator, seed_inputs):
+    def _gen_profiling_inputs_none(comparator, seed_inputs, use_torch=False):
         return seed_inputs
 
     @staticmethod
-    def _gen_profiling_inputs_random(comparator, seed_inputs):
+    def _gen_profiling_inputs_random(comparator, seed_inputs, use_torch=False):
         return np.random.normal(size=seed_inputs.shape).astype(np.float32)
 
     # @staticmethod
@@ -278,20 +200,18 @@ class ModelDiff(ModelComparison):
     #         yield x
 
     @staticmethod
-    def _gen_profiling_inputs_search(comparator, seed_inputs):
-        batch_seed_inputs = np.array(seed_inputs)
-        inputs = batch_seed_inputs
+    def _gen_profiling_inputs_search(comparator, seed_inputs, use_torch=False):
         input_shape = seed_inputs[0].shape
         max_iterations = 10
         max_steps = 10
 
-        initial_outputs_1 = comparator.model1.batch_forward(batch_seed_inputs)
-        initial_outputs_2 = comparator.model2.batch_forward(batch_seed_inputs)
+        initial_outputs_1 = comparator.model1.batch_forward(seed_inputs)
+        initial_outputs_2 = comparator.model2.batch_forward(seed_inputs)
 
         for i in range(max_iterations):
             metrics = comparator.input_metrics(comparator.model1, list(inputs))
             # mutation_idx = random.randint(0, len(inputs))
-            mutation_perturbation = np.random.random_sample(size=batch_seed_inputs.shape).astype(np.float32)
+            mutation_perturbation = np.random.random_sample(size=seed_inputs.shape).astype(np.float32)
             # print(f'{inputs.shape} {mutation_perturbation.shape}')
             print(f'mutation {i}-th iteration')
             for j in range(max_steps):
