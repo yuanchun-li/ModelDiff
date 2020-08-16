@@ -104,7 +104,7 @@ class Finetuner(object):
             reg_layers[3].append(teacher.layer4)
             teacher.layer4.register_forward_hook(record_act)
 
-            if 'mbnet' in args.network:
+            if '5' in args.feat_layers:
                 reg_layers[4].append(teacher.layer5)
                 teacher.layer5.register_forward_hook(record_act)
         else:
