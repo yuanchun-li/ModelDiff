@@ -60,12 +60,14 @@ class Finetuner(object):
             self.out = output
 
         if 'mbnetv2' in args.network:
-            reg_layers = {0: [model.layer1], 1: [model.layer2], 2: [model.layer3], 3: [model.layer4], 4: [model.layer5]}
+            reg_layers = {0: [model.layer1], 1: [model.layer2], 2: [model.layer3], 3: [model.layer4]}
             model.layer1.register_forward_hook(record_act)
             model.layer2.register_forward_hook(record_act)
             model.layer3.register_forward_hook(record_act)
             model.layer4.register_forward_hook(record_act)
-            model.layer5.register_forward_hook(record_act)
+            if '5' in args.feat_layers:
+                reg_layers[4] = [model.layer5]
+                model.layer5.register_forward_hook(record_act)
         elif 'resnet' in args.network:
             reg_layers = {0: [model.layer1], 1: [model.layer2], 2: [model.layer3], 3: [model.layer4]}
             model.layer1.register_forward_hook(record_act)
