@@ -324,11 +324,12 @@ class ModelWrapper:
             self.save_torch_model(student_model)
         elif method == 'distill':
             student_model = eval(f'{self.arch_id}_dropout')(
-                pretrained=True,
+                pretrained=False,
                 num_classes=train_loader.dataset.num_classes
             )
             args.network = self.arch_id
             args.feat_lmda = 5e0
+            args.reinit = True
 
             if CONTINUE_TRAIN:
                 student_model = self.load_saved_weights(student_model)  # continue training
@@ -344,12 +345,13 @@ class ModelWrapper:
             arch_id = params[0]
             # use output distillation to transfer teacher knowledge to another architecture
             student_model = eval(f'{arch_id}_dropout')(
-                pretrained=True,
+                pretrained=False,
                 num_classes=train_loader.dataset.num_classes
             )
 
             args.network = arch_id
             args.steal = True
+            args.reinit = True
             args.steal_alpha = 1
             args.temperature = 1
 
