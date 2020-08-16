@@ -168,7 +168,7 @@ class ModelWrapper:
             train_loader = self.benchmark.get_dataloader(
                 dataset_id, split='train', batch_size=n, shuffle=True)
             images, labels = next(iter(train_loader))
-        return images
+        return images.to('cpu').numpy()
 
     def batch_forward(self, inputs):
         if isinstance(inputs, np.ndarray):

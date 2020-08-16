@@ -51,14 +51,16 @@ class ModelDiff(ModelComparison):
         self.compute_decision_dist = compute_decision_dist if compute_decision_dist else ModelDiff._compute_decision_dist_output_cos
         self.compare_ddv = compare_ddv if compare_ddv else ModelDiff._compare_ddv_cos
 
-    def compare(self, use_torch=True):
-        self.logger.info(f'generating seed inputs')
-        rand = False
+    def get_seed_inputs(self, rand=False):
         seed_inputs = np.concatenate([
             self.model1.get_seed_inputs(self.N_INPUT_PAIRS, rand=rand),
             self.model2.get_seed_inputs(self.N_INPUT_PAIRS, rand=rand)
         ])
-        seed_inputs = list(seed_inputs)
+        return seed_inputs
+        
+    def compare(self, use_torch=True):
+        self.logger.info(f'generating seed inputs')
+        seed_inputs = list(self.get_seed_inputs())
         np.random.shuffle(seed_inputs)
         seed_inputs = np.array(seed_inputs)
         if use_torch:
@@ -202,6 +204,7 @@ class ModelDiff(ModelComparison):
     @staticmethod
     def _gen_profiling_inputs_search(comparator, seed_inputs, use_torch=False, epsilon=0.2):
         input_shape = seed_inputs[0].shape
+        n_inputs = seed_inputs.shape[0]
         max_iterations = 1000
         max_steps = 10
         model1 = comparator.model1
@@ -248,13 +251,17 @@ class ModelDiff(ModelComparison):
             mutation[mutation_pos] = epsilon
             mutation = np.reshape(mutation, input_shape)
             
+            mutation_batch = np.zeros(shape=inputs.shape).astype(np.float32)
+            mutation_idx = np.random.randint(0, n_inputs)
+            mutation_batch[mutation_idx] = mutation
+            
             # print(f'{inputs.shape} {mutation_perturbation.shape}')
             # for j in range(max_steps):
                 # mutated_inputs = np.clip(inputs + mutation, 0, 1)
                 # print(f'{list(inputs)[0].shape}')
-            mutate_right_inputs = inputs + mutation
+            mutate_right_inputs = inputs + mutation_batch
             mutate_right_score = evaluate_inputs(mutate_right_inputs)
-            mutate_left_inputs = inputs - mutation
+            mutate_left_inputs = inputs - mutation_batch
             mutate_left_score = evaluate_inputs(mutate_left_inputs)
             
             if mutate_right_score <= score and mutate_left_score <= score:
