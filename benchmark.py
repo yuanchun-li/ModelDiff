@@ -29,6 +29,7 @@ from model.fe_resnet import feresnet18, feresnet50, feresnet101
 from model.fe_mobilenet import fembnetv2
 from model.fe_vgg16 import *
 from finetuner import Finetuner
+from weight_pruner import WeightPruner
 
 
 SEED = 98
@@ -44,9 +45,10 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 CONTINUE_TRAIN = False  # whether to continue previous training
 
 # for debug
-# TRANSFER_ITERS = 100
-# PRUNE_ITERS = 100
-# DISTILL_ITERS = 100
+# TRAIN_ITERS = 10000
+# TRANSFER_ITERS = 10000
+# PRUNE_ITERS = 10000
+# DISTILL_ITERS = 10000
 # STEAL_ITERS = 10000
 
 def lazy_property(func):
@@ -266,6 +268,8 @@ class ModelWrapper:
             args.ft_ratio = 1
             args.reinit = True
             args.lr = 1e-2
+            args.weight_decay = 5e-3
+            args.momentum = 0.9
 
             if CONTINUE_TRAIN:
                 torch_model = self.load_saved_weights(torch_model)  # continue training
@@ -315,7 +319,7 @@ class ModelWrapper:
             if CONTINUE_TRAIN:
                 student_model = self.load_saved_weights(student_model)  # continue training
 
-            finetuner = Finetuner(
+            finetuner = WeightPruner(
                 args,
                 student_model, teacher_model,
                 train_loader, test_loader,
@@ -329,6 +333,9 @@ class ModelWrapper:
             )
             args.network = self.arch_id
             args.feat_lmda = 5e0
+            args.lr = 1e-2
+            args.weight_decay = 5e-3
+            args.momentum = 0.9
 
             if CONTINUE_TRAIN:
                 student_model = self.load_saved_weights(student_model)  # continue training
@@ -352,6 +359,9 @@ class ModelWrapper:
             args.steal = True
             args.steal_alpha = 1
             args.temperature = 1
+            args.lr = 1e-2
+            args.weight_decay = 5e-3
+            args.momentum = 0.9
 
             if CONTINUE_TRAIN:
                 student_model = self.load_saved_weights(student_model)  # continue training
@@ -431,7 +441,7 @@ class ModelWrapper:
         """
         # TODO implement this
         model = self.torch_model.to(DEVICE)
-        test_loader = self.benchmark.get_dataloader(self.dataset_id)
+        test_loader = self.benchmark.get_dataloader(self.dataset_id, split="test")
 
         with torch.no_grad():
             model.eval()
@@ -563,7 +573,7 @@ class ImageBenchmark:
 
         # for debug
         # prune_ratios = [0.2]
-        # transfer_tune_ratios = [0.1]
+        # transfer_tune_ratios = [0.5]
 
         transfer_models = []
         # - M_{i,x}/{trans-y,l} -- Transfer M_{i,x} to D_y by fine-tuning from l-st layer
@@ -583,9 +593,9 @@ class ImageBenchmark:
                 yield transfer_model.quantize(dtype=quantization_dtype)
 
         # - M_{i,x}/{prune-p} -- Prune M_{i,x} with pruning ratio = p
-        for transfer_model in transfer_models:
-            for pr in prune_ratios:
-                yield transfer_model.prune(prune_ratio=pr)
+        # for transfer_model in transfer_models:
+        #     for pr in prune_ratios:
+        #         yield transfer_model.prune(prune_ratio=pr)
         
         # - M_{i,x}/{distill} -- Distill M_{i,x}
         for transfer_model in transfer_models:
