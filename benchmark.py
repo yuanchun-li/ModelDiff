@@ -597,15 +597,14 @@ class ImageBenchmark:
                     yield transfer_model
         
         # - M_{i,x}/{quant-qint8/float16} -- Compress M_{i,x} with integer / float16 quantization
-        # for debug
         for transfer_model in transfer_models:
             for quantization_dtype in quantization_dtypes:
                 yield transfer_model.quantize(dtype=quantization_dtype)
 
         # - M_{i,x}/{prune-p} -- Prune M_{i,x} with pruning ratio = p
-        # for transfer_model in transfer_models:
-        #     for pr in prune_ratios:
-        #         yield transfer_model.prune(prune_ratio=pr)
+        for transfer_model in transfer_models:
+            for pr in prune_ratios:
+                yield transfer_model.prune(prune_ratio=pr)
         
         # - M_{i,x}/{distill} -- Distill M_{i,x}
         for transfer_model in transfer_models:
