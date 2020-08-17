@@ -83,10 +83,27 @@ class ModelDiff(ModelComparison):
         input_metrics_2 = self.input_metrics(self.model2, profiling_inputs, use_torch=use_torch)
         self.logger.info(f'  input metrics: model1={input_metrics_1} model2={input_metrics_2}')
 
-        model_similarity = self._compute_distance(profiling_inputs)
+        model_similarity = self.compute_similarity_with_inputs(profiling_inputs)
         return model_similarity
     
-    def _compute_distance(self, profiling_inputs):
+    def compute_similarity_with_inputs(self, profiling_inputs):
+        self.logger.info(f'computing DDVs')
+        ddv1 = self.compute_ddv(self.model1, profiling_inputs)
+        ddv2 = self.compute_ddv(self.model2, profiling_inputs)
+        self.logger.info(f'  DDV computed: shape={ddv1.shape} and {ddv2.shape}')
+#         print(f' ddv1={ddv1}\n ddv2={ddv2}')
+
+        self.logger.info(f'measuring model similarity')
+        ddv1 = Utils.normalize(np.array(ddv1))
+        ddv2 = Utils.normalize(np.array(ddv2))
+        self.logger.debug(f' ddv1={ddv1}\n ddv2={ddv2}')
+        ddv_distance = self.compare_ddv(ddv1, ddv2)
+        model_similarity = 1 - ddv_distance
+        
+        self.logger.info(f'  model similarity: {model_similarity}')
+        return model_similarity
+    
+    def _compute_distance_old(self, profiling_inputs):
         self.logger.info(f'computing DDVs')
         ddv1 = []  # DDV is short for decision distance vector
         ddv2 = []
@@ -102,11 +119,11 @@ class ModelDiff(ModelComparison):
             # self.logger.info(f'generated input pair:\n{xa}\n{xb}')
             y1a = profiling_outputs_1[2 * i]
             y1b = profiling_outputs_1[2 * i + 1]
-            dist1 = spatial.distance.euclidean(y1a, y1b)
+            dist1 = spatial.distance.cosine(y1a, y1b)
 
             y2a = profiling_outputs_2[2 * i]
             y2b = profiling_outputs_2[2 * i + 1]
-            dist2 = spatial.distance.euclidean(y2a, y2b)
+            dist2 = spatial.distance.cosine(y2a, y2b)
             # dist1 = self.compute_decision_dist(self.model1, xa, xb)
             # dist2 = self.compute_decision_dist(self.model2, xa, xb)
             # self.logger.debug(f'computed distances: {dist1} {dist2}')
@@ -114,6 +131,7 @@ class ModelDiff(ModelComparison):
             ddv2.append(dist2)
         ddv1, ddv2 = np.array(ddv1), np.array(ddv2)
         self.logger.info(f'  DDV computed: shape={ddv1.shape} and {ddv2.shape}')
+#         print(f'  DDV computed:\n\t ddv1={ddv1}\n\t ddv2={ddv2}')
 
         self.logger.info(f'measuring model similarity')
         ddv1 = Utils.normalize(np.array(ddv1))
@@ -123,6 +141,18 @@ class ModelDiff(ModelComparison):
         model_similarity = 1 - ddv_distance
         self.logger.info(f'  model similarity: {model_similarity}')
         return model_similarity
+    
+    def compute_ddv(self, model, inputs):
+        dists = []
+        outputs = model.batch_forward(inputs).to('cpu').numpy()
+        self.logger.debug(f'{model}: \n profiling_outputs={outputs.shape}\n{outputs}\n')
+        for i in range(int(len(list(inputs)) / 2)):
+            ya = outputs[2 * i][:10]
+            yb = outputs[2 * i + 1][:10]
+#             dist = spatial.distance.euclidean(ya, yb)
+            dist = spatial.distance.cosine(ya, yb)
+            dists.append(dist)
+        return np.array(dists)
 
     @staticmethod
     def metrics_output_diversity(model, inputs, use_torch=False):

@@ -311,14 +311,15 @@ class Finetuner(object):
             for v in all_params[-num_tune_params:]:
                 parameters.append({'params': v})
 
-            # all_names = [name for name, _ in model.named_parameters()]
-            # with open(osp.join(self.args.output_dir, "finetune.log"), "w") as f:
-            #     f.write(f"Fixed layers:\n")
-            #     for name in all_names[:-num_tune_params]:
-            #         f.write(name+"\n")
-            #     f.write(f"\n\nFinetuned layers:\n")
-            #     for name in all_names[-num_tune_params:]:
-            #         f.write(name+"\n")
+            all_names = [name for name, _ in model.named_parameters()]
+            with open(osp.join(self.args.output_dir, "finetune.log"), "w") as f:
+                f.write(f"Fixed layers:\n")
+                for name in all_names[:-num_tune_params]:
+                    f.write(name+"\n")
+                f.write(f"\n\nFinetuned layers:\n")
+                for name in all_names[-num_tune_params:]:
+                    f.write(name+"\n")
+            
             return parameters
 
         if not ft_begin_module:
