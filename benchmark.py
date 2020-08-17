@@ -125,14 +125,20 @@ class ModelWrapper:
         """
         if self.dataset_id == 'ImageNet':
             num_classes = 1000
-        elif self.dataset_id == 'MIT67':
-            num_classes = 67
         else:
             num_classes = self.benchmark.get_dataloader(self.dataset_id).dataset.num_classes
         torch_model = eval(f'{self.arch_id}_dropout')(
             pretrained=False,
             num_classes=num_classes
         )
+        
+        m = re.match(r'(\S+)\((\S*)\)', self.trans_str)
+        method = m.group(1)
+        params = m.group(2).split(',')
+        if method == 'quantize':
+            dtype = params[0]
+            dtype = torch.qint8 if dtype == 'qint8' else torch.float16
+            torch_model = torch.quantization.quantize_dynamic(torch_model, dtype=dtype)
         
         ckpt = torch.load(os.path.join(self.torch_model_path, 'final_ckpt.pth'))
         torch_model.load_state_dict(ckpt['state_dict'])
@@ -168,7 +174,8 @@ class ModelWrapper:
             train_loader = self.benchmark.get_dataloader(
                 dataset_id, split='train', batch_size=n, shuffle=True)
             images, labels = next(iter(train_loader))
-        return images.to('cpu').numpy()
+            images = images.to('cpu').numpy()
+        return images
 
     def batch_forward(self, inputs):
         if isinstance(inputs, np.ndarray):
@@ -431,7 +438,7 @@ class ModelWrapper:
         """
         # TODO implement this
         model = self.torch_model.to(DEVICE)
-        test_loader = self.benchmark.get_dataloader(self.dataset_id)
+        test_loader = self.benchmark.get_dataloader(self.dataset_id, split='test')
 
         with torch.no_grad():
             model.eval()
@@ -443,6 +450,7 @@ class ModelWrapper:
                 out = model(batch)
                 _, pred = out.max(dim=1)
                 top1 += int(pred.eq(label).sum().item())
+        # print(top1, total)
         return float(top1) / total * 100
 
 
