@@ -45,11 +45,11 @@ DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 CONTINUE_TRAIN = False  # whether to continue previous training
 
 # for debug
-# TRAIN_ITERS = 10000
-# TRANSFER_ITERS = 10000
-# PRUNE_ITERS = 10000
-# DISTILL_ITERS = 10000
-# STEAL_ITERS = 10000
+TRAIN_ITERS = 10000
+TRANSFER_ITERS = 10000
+PRUNE_ITERS = 10000
+DISTILL_ITERS = 10000
+STEAL_ITERS = 10000
 
 def lazy_property(func):
     attribute = '_lazy_' + func.__name__
@@ -465,8 +465,8 @@ class ImageBenchmark:
         # self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
         self.archs = ['mbnetv2', 'resnet18']
         # For debug
-        # self.datasets = ['MIT67']
-        # self.archs = ['resnet18']
+        self.datasets = ['MIT67']
+        self.archs = ['mbnetv2']
 
     def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shuffle=True, seed=SEED, shot=-1):
         """
@@ -572,8 +572,8 @@ class ImageBenchmark:
                 yield retrain_model
 
         # for debug
-        # prune_ratios = [0.2]
-        # transfer_tune_ratios = [0.5]
+        prune_ratios = [0.2]
+        transfer_tune_ratios = [0.5]
 
         transfer_models = []
         # - M_{i,x}/{trans-y,l} -- Transfer M_{i,x} to D_y by fine-tuning from l-st layer
@@ -588,14 +588,14 @@ class ImageBenchmark:
         
         # - M_{i,x}/{quant-qint8/float16} -- Compress M_{i,x} with integer / float16 quantization
         # for debug
-        for transfer_model in transfer_models:
-            for quantization_dtype in quantization_dtypes:
-                yield transfer_model.quantize(dtype=quantization_dtype)
+        # for transfer_model in transfer_models:
+        #     for quantization_dtype in quantization_dtypes:
+        #         yield transfer_model.quantize(dtype=quantization_dtype)
 
         # - M_{i,x}/{prune-p} -- Prune M_{i,x} with pruning ratio = p
-        # for transfer_model in transfer_models:
-        #     for pr in prune_ratios:
-        #         yield transfer_model.prune(prune_ratio=pr)
+        for transfer_model in transfer_models:
+            for pr in prune_ratios:
+                yield transfer_model.prune(prune_ratio=pr)
         
         # - M_{i,x}/{distill} -- Distill M_{i,x}
         for transfer_model in transfer_models:
