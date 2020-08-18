@@ -127,14 +127,20 @@ class ModelWrapper:
         """
         if self.dataset_id == 'ImageNet':
             num_classes = 1000
-        elif self.dataset_id == 'MIT67':
-            num_classes = 67
         else:
             num_classes = self.benchmark.get_dataloader(self.dataset_id).dataset.num_classes
         torch_model = eval(f'{self.arch_id}_dropout')(
             pretrained=False,
             num_classes=num_classes
         )
+        
+        m = re.match(r'(\S+)\((\S*)\)', self.trans_str)
+        method = m.group(1)
+        params = m.group(2).split(',')
+        if method == 'quantize':
+            dtype = params[0]
+            dtype = torch.qint8 if dtype == 'qint8' else torch.float16
+            torch_model = torch.quantization.quantize_dynamic(torch_model, dtype=dtype)
         
         ckpt = torch.load(os.path.join(self.torch_model_path, 'final_ckpt.pth'))
         torch_model.load_state_dict(ckpt['state_dict'])
@@ -170,7 +176,8 @@ class ModelWrapper:
             train_loader = self.benchmark.get_dataloader(
                 dataset_id, split='train', batch_size=n, shuffle=True)
             images, labels = next(iter(train_loader))
-        return images.to('cpu').numpy()
+            images = images.to('cpu').numpy()
+        return images
 
     def batch_forward(self, inputs):
         if isinstance(inputs, np.ndarray):
@@ -328,11 +335,12 @@ class ModelWrapper:
             self.save_torch_model(student_model)
         elif method == 'distill':
             student_model = eval(f'{self.arch_id}_dropout')(
-                pretrained=True,
+                pretrained=False,
                 num_classes=train_loader.dataset.num_classes
             )
             args.network = self.arch_id
             args.feat_lmda = 5e0
+            args.reinit = True
             args.lr = 1e-2
             args.weight_decay = 5e-3
             args.momentum = 0.9
@@ -351,12 +359,13 @@ class ModelWrapper:
             arch_id = params[0]
             # use output distillation to transfer teacher knowledge to another architecture
             student_model = eval(f'{arch_id}_dropout')(
-                pretrained=True,
+                pretrained=False,
                 num_classes=train_loader.dataset.num_classes
             )
 
             args.network = arch_id
             args.steal = True
+            args.reinit = True
             args.steal_alpha = 1
             args.temperature = 1
             args.lr = 1e-2
@@ -441,7 +450,7 @@ class ModelWrapper:
         """
         # TODO implement this
         model = self.torch_model.to(DEVICE)
-        test_loader = self.benchmark.get_dataloader(self.dataset_id, split="test")
+        test_loader = self.benchmark.get_dataloader(self.dataset_id, split='test')
 
         with torch.no_grad():
             model.eval()
@@ -453,6 +462,7 @@ class ModelWrapper:
                 out = model(batch)
                 _, pred = out.max(dim=1)
                 top1 += int(pred.eq(label).sum().item())
+        # print(top1, total)
         return float(top1) / total * 100
 
 
@@ -587,10 +597,9 @@ class ImageBenchmark:
                     yield transfer_model
         
         # - M_{i,x}/{quant-qint8/float16} -- Compress M_{i,x} with integer / float16 quantization
-        # for debug
-        # for transfer_model in transfer_models:
-        #     for quantization_dtype in quantization_dtypes:
-        #         yield transfer_model.quantize(dtype=quantization_dtype)
+        for transfer_model in transfer_models:
+            for quantization_dtype in quantization_dtypes:
+                yield transfer_model.quantize(dtype=quantization_dtype)
 
         # - M_{i,x}/{prune-p} -- Prune M_{i,x} with pruning ratio = p
         for transfer_model in transfer_models:

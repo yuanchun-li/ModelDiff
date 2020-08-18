@@ -83,47 +83,60 @@ class ModelDiff(ModelComparison):
         input_metrics_2 = self.input_metrics(self.model2, profiling_inputs, use_torch=use_torch)
         self.logger.info(f'  input metrics: model1={input_metrics_1} model2={input_metrics_2}')
 
-        model_similarity = self._compute_distance(profiling_inputs)
+        model_similarity = self.compute_similarity_with_ddm(profiling_inputs)
         return model_similarity
     
-    def _compute_distance(self, profiling_inputs):
+    def compute_similarity_with_ddv(self, profiling_inputs):
         self.logger.info(f'computing DDVs')
-        ddv1 = []  # DDV is short for decision distance vector
-        ddv2 = []
-        profiling_outputs_1 = self.model1.batch_forward(profiling_inputs)
-        profiling_outputs_2 = self.model2.batch_forward(profiling_inputs)
-        self.logger.debug(
-            f'{self.model1}: \n profiling_outputs_1={profiling_outputs_1.shape}\n{profiling_outputs_1}\n'
-            f'{self.model2}: \n profiling_outputs_2={profiling_outputs_2.shape}\n{profiling_outputs_2}'
-        )
-        profiling_outputs_1 = profiling_outputs_1.to('cpu').numpy()
-        profiling_outputs_2 = profiling_outputs_2.to('cpu').numpy()
-        for i in range(int(len(profiling_inputs) / 2)):
-            # self.logger.info(f'generated input pair:\n{xa}\n{xb}')
-            y1a = profiling_outputs_1[2 * i]
-            y1b = profiling_outputs_1[2 * i + 1]
-            dist1 = spatial.distance.euclidean(y1a, y1b)
-
-            y2a = profiling_outputs_2[2 * i]
-            y2b = profiling_outputs_2[2 * i + 1]
-            dist2 = spatial.distance.euclidean(y2a, y2b)
-            # dist1 = self.compute_decision_dist(self.model1, xa, xb)
-            # dist2 = self.compute_decision_dist(self.model2, xa, xb)
-            # self.logger.debug(f'computed distances: {dist1} {dist2}')
-            ddv1.append(dist1)
-            ddv2.append(dist2)
-        ddv1, ddv2 = np.array(ddv1), np.array(ddv2)
+        ddv1 = self.compute_ddv(self.model1, profiling_inputs)
+        ddv2 = self.compute_ddv(self.model2, profiling_inputs)
         self.logger.info(f'  DDV computed: shape={ddv1.shape} and {ddv2.shape}')
+#         print(f' ddv1={ddv1}\n ddv2={ddv2}')
 
         self.logger.info(f'measuring model similarity')
         ddv1 = Utils.normalize(np.array(ddv1))
         ddv2 = Utils.normalize(np.array(ddv2))
-        self.logger.debug(f'ddv1={ddv1}\nddv2={ddv2}')
+        self.logger.debug(f' ddv1={ddv1}\n ddv2={ddv2}')
         ddv_distance = self.compare_ddv(ddv1, ddv2)
         model_similarity = 1 - ddv_distance
+        
         self.logger.info(f'  model similarity: {model_similarity}')
         return model_similarity
+    
+    def compute_ddv(self, model, inputs):
+        dists = []
+        outputs = model.batch_forward(inputs).to('cpu').numpy()
+        self.logger.debug(f'{model}: \n profiling_outputs={outputs.shape}\n{outputs}\n')
+        n_pairs = int(len(list(inputs)) / 2)
+        for i in range(n_pairs):
+            ya = outputs[i][:10]
+            yb = outputs[i + n_pairs][:10]
+#             dist = spatial.distance.euclidean(ya, yb)
+            dist = spatial.distance.cosine(ya, yb)
+            dists.append(dist)
+        return np.array(dists)
 
+    def compute_similarity_with_ddm(self, profiling_inputs):
+        self.logger.info(f'computing DDMs')
+        ddm1 = self.compute_ddm(self.model1, profiling_inputs)
+        ddm2 = self.compute_ddm(self.model2, profiling_inputs)
+        self.logger.info(f'  DDM computed: shape={ddm1.shape} and {ddm2.shape}')
+#         print(f' ddv1={ddv1}\n ddv2={ddv2}')
+
+        self.logger.info(f'measuring model similarity')
+        ddm_distance = ModelDiff.mtx_similar1(ddm1, ddm2)
+        model_similarity = 1 - ddm_distance
+        
+        self.logger.info(f'  model similarity: {model_similarity}')
+        return model_similarity
+    
+    def compute_ddm(self, model, inputs):
+        outputs = model.batch_forward(inputs).to('cpu').numpy()
+        outputs = outputs[:, :10]
+        outputs_list = list(outputs)
+        ddm = spatial.distance.cdist(outputs_list, outputs_list)
+        return ddm
+    
     @staticmethod
     def metrics_output_diversity(model, inputs, use_torch=False):
         outputs = model.batch_forward(inputs).to('cpu').numpy()
@@ -279,6 +292,73 @@ class ModelDiff(ModelComparison):
     @staticmethod
     def _compare_ddv_cos(ddv1, ddv2):
         return spatial.distance.cosine(ddv1, ddv2)
+    
+    @staticmethod
+    def mtx_similar1(arr1:np.ndarray, arr2:np.ndarray) -> float:
+        '''
+        计算矩阵相似度的一种方法。将矩阵展平成向量，计算向量的乘积除以模长。
+        注意有展平操作。
+        :param arr1:矩阵1
+        :param arr2:矩阵2
+        :return:实际是夹角的余弦值，ret = (cos+1)/2
+        '''
+        farr1 = arr1.ravel()
+        farr2 = arr2.ravel()
+        len1 = len(farr1)
+        len2 = len(farr2)
+        if len1 > len2:
+            farr1 = farr1[:len2]
+        else:
+            farr2 = farr2[:len1]
+
+        numer = np.sum(farr1 * farr2)
+        denom = np.sqrt(np.sum(farr1**2) * np.sum(farr2**2))
+        similar = numer / denom # 这实际是夹角的余弦值
+        return  (similar+1) / 2     # 姑且把余弦函数当线性
+
+    def mtx_similar2(arr1:np.ndarray, arr2:np.ndarray) -> float:
+        '''
+        计算对矩阵1的相似度。相减之后对元素取平方再求和。因为如果越相似那么为0的会越多。
+        如果矩阵大小不一样会在左上角对齐，截取二者最小的相交范围。
+        :param arr1:矩阵1
+        :param arr2:矩阵2
+        :return:相似度（0~1之间）
+        '''
+        if arr1.shape != arr2.shape:
+            minx = min(arr1.shape[0],arr2.shape[0])
+            miny = min(arr1.shape[1],arr2.shape[1])
+            differ = arr1[:minx,:miny] - arr2[:minx,:miny]
+        else:
+            differ = arr1 - arr2
+        numera = np.sum(differ**2)
+        denom = np.sum(arr1**2)
+        similar = 1 - (numera / denom)
+        return similar
+
+    def mtx_similar3(arr1:np.ndarray, arr2:np.ndarray) -> float:
+        '''
+        From CS231n: There are many ways to decide whether
+        two matrices are similar; one of the simplest is the Frobenius norm. In case
+        you haven't seen it before, the Frobenius norm of two matrices is the square
+        root of the squared sum of differences of all elements; in other words, reshape
+        the matrices into vectors and compute the Euclidean distance between them.
+        difference = np.linalg.norm(dists - dists_one, ord='fro')
+        :param arr1:矩阵1
+        :param arr2:矩阵2
+        :return:相似度（0~1之间）
+        '''
+        if arr1.shape != arr2.shape:
+            minx = min(arr1.shape[0],arr2.shape[0])
+            miny = min(arr1.shape[1],arr2.shape[1])
+            differ = arr1[:minx,:miny] - arr2[:minx,:miny]
+        else:
+            differ = arr1 - arr2
+        dist = np.linalg.norm(differ, ord='fro')
+        len1 = np.linalg.norm(arr1)
+        len2 = np.linalg.norm(arr2)     # 普通模长
+        denom = (len1 + len2) / 2
+        similar = 1 - (dist / denom)
+        return similar
 
 
 def parse_args():
