@@ -12,9 +12,10 @@ import copy
 import random
 import torch
 import numpy as np
-import tensorflow as tf
+# import tensorflow as tf
 from scipy import spatial
 from abc import ABC, abstractmethod
+from pdb import set_trace as st
 
 from utils import lazy_property, Utils
 
@@ -34,7 +35,7 @@ class ModelComparison(ABC):
 
 
 class ModelDiff(ModelComparison):
-    N_INPUT_PAIRS = 100
+    N_INPUT_PAIRS = 300
     MAX_VAL = 256
 
     def __init__(self, model1, model2, gen_inputs=None, input_metrics=None, compute_decision_dist=None, compare_ddv=None):
@@ -56,6 +57,7 @@ class ModelDiff(ModelComparison):
             self.model1.get_seed_inputs(self.N_INPUT_PAIRS, rand=rand),
             self.model2.get_seed_inputs(self.N_INPUT_PAIRS, rand=rand)
         ])
+        
         return seed_inputs
         
     def compare(self, use_torch=True):
@@ -109,8 +111,8 @@ class ModelDiff(ModelComparison):
         self.logger.debug(f'{model}: \n profiling_outputs={outputs.shape}\n{outputs}\n')
         n_pairs = int(len(list(inputs)) / 2)
         for i in range(n_pairs):
-            ya = outputs[i][:10]
-            yb = outputs[i + n_pairs][:10]
+            ya = outputs[i]
+            yb = outputs[i + n_pairs]
 #             dist = spatial.distance.euclidean(ya, yb)
             dist = spatial.distance.cosine(ya, yb)
             dists.append(dist)
@@ -132,7 +134,7 @@ class ModelDiff(ModelComparison):
     
     def compute_ddm(self, model, inputs):
         outputs = model.batch_forward(inputs).to('cpu').numpy()
-        outputs = outputs[:, :10]
+        # outputs = outputs[:, :10]
         outputs_list = list(outputs)
         ddm = spatial.distance.cdist(outputs_list, outputs_list)
         return ddm

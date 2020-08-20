@@ -90,7 +90,7 @@ def base_args():
 
 class ModelWrapper:
     def __init__(self, benchmark, teacher_wrapper, trans_str,
-                 arch_id=None, dataset_id=None, iters=100):
+                 arch_id=None, dataset_id=None, iters=100, fc=True):
         self.logger = logging.getLogger('ModelWrapper')
         self.benchmark = benchmark
         self.teacher_wrapper = teacher_wrapper
@@ -99,6 +99,7 @@ class ModelWrapper:
         self.dataset_id = dataset_id if dataset_id else teacher_wrapper.dataset_id
         self.torch_model_path = os.path.join(benchmark.models_dir, f'{self.__str__()}')
         self.iters = iters
+        self.fc = fc
         assert self.arch_id is not None
         assert self.dataset_id is not None
 
@@ -129,10 +130,17 @@ class ModelWrapper:
             num_classes = 1000
         else:
             num_classes = self.benchmark.get_dataloader(self.dataset_id).dataset.num_classes
-        torch_model = eval(f'{self.arch_id}_dropout')(
-            pretrained=False,
-            num_classes=num_classes
-        )
+        
+        if self.fc:
+            torch_model = eval(f'{self.arch_id}_dropout')(
+                pretrained=False,
+                num_classes=num_classes
+            )
+        else:
+            torch_model = eval(f'fe{self.arch_id}')(
+                pretrained=False,
+                num_classes=num_classes
+            )
         
         m = re.match(r'(\S+)\((\S*)\)', self.trans_str)
         method = m.group(1)
@@ -141,7 +149,6 @@ class ModelWrapper:
             dtype = params[0]
             dtype = torch.qint8 if dtype == 'qint8' else torch.float16
             torch_model = torch.quantization.quantize_dynamic(torch_model, dtype=dtype)
-        
         ckpt = torch.load(os.path.join(self.torch_model_path, 'final_ckpt.pth'))
         torch_model.load_state_dict(ckpt['state_dict'])
         return torch_model
@@ -475,8 +482,8 @@ class ImageBenchmark:
         # self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
         self.archs = ['mbnetv2', 'resnet18']
         # For debug
-        self.datasets = ['MIT67']
-        self.archs = ['mbnetv2']
+        self.datasets = ['MIT67', 'Flower102', 'SDog120']
+        self.archs = ['mbnetv2', 'resnet18']
 
     def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shuffle=True, seed=SEED, shot=-1):
         """
@@ -523,7 +530,7 @@ class ImageBenchmark:
             self.logger.warning(f'get_dataloader failed: {e}')
             return None
 
-    def load_pretrained(self, arch_id):
+    def load_pretrained(self, arch_id, fc=True):
         """
         Get the model pretrained on imagenet
         :param arch_id: the name of the arch
@@ -534,11 +541,12 @@ class ImageBenchmark:
             teacher_wrapper=None,
             trans_str=f'pretrain({arch_id},ImageNet)',
             arch_id=arch_id,
-            dataset_id='ImageNet'
+            dataset_id='ImageNet',
+            fc=fc,
         )
         return model_wrapper
 
-    def load_trained(self, arch_id, dataset_id, iters=TRAIN_ITERS):
+    def load_trained(self, arch_id, dataset_id, iters=TRAIN_ITERS, fc=True):
         """
         Get the model with architecture arch_id trained on dataset dataset_id
         :param arch_id: the name of the arch
@@ -552,11 +560,12 @@ class ImageBenchmark:
             trans_str=f'train({arch_id},{dataset_id})',
             arch_id=arch_id,
             dataset_id=dataset_id,
-            iters=iters
+            iters=iters,
+            fc=fc,
         )
         return model_wrapper
 
-    def list_models(self):
+    def list_models(self, fc=True):
         """
         list the models in the benchmark dataset
         :return: a stream of ModelWrapper instances
@@ -569,7 +578,7 @@ class ImageBenchmark:
 
         # load pretrained source models
         for arch in self.archs:
-            source_model = self.load_pretrained(arch)
+            source_model = self.load_pretrained(arch, fc=fc)
             source_models.append(source_model)
             yield source_model
 
@@ -577,13 +586,13 @@ class ImageBenchmark:
         retrain_models = []
         for arch_id in self.archs:
             for dataset_id in self.datasets:
-                retrain_model = self.load_trained(arch_id, dataset_id, TRAIN_ITERS)
+                retrain_model = self.load_trained(arch_id, dataset_id, TRAIN_ITERS, fc=fc)
                 retrain_models.append(retrain_model)
                 yield retrain_model
 
         # for debug
-        prune_ratios = [0.2]
-        transfer_tune_ratios = [0.5]
+        # prune_ratios = [0.2]
+        # transfer_tune_ratios = [0.5, 1]
 
         transfer_models = []
         # - M_{i,x}/{trans-y,l} -- Transfer M_{i,x} to D_y by fine-tuning from l-st layer
