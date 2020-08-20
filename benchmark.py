@@ -471,7 +471,8 @@ class ImageBenchmark:
         self.logger = logging.getLogger('ImageBench')
         self.datasets_dir = datasets_dir
         self.models_dir = models_dir
-        self.datasets = ['MIT67', 'Flower102', 'SDog120']
+        # self.datasets = ['MIT67', 'Flower102', 'SDog120']
+        self.datasets = ['Flower102', 'SDog120']
         # self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
         self.archs = ['mbnetv2', 'resnet18']
         # For debug
