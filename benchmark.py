@@ -106,6 +106,9 @@ class ModelWrapper:
     def __str__(self):
         teacher_str = '' if self.teacher_wrapper is None else self.teacher_wrapper.__str__()
         return f'{teacher_str}{self.trans_str}-'
+    
+    def name(self):
+        return self.__str__()
 
     def torch_model_exists(self):
         ckpt_path = os.path.join(self.torch_model_path, 'final_ckpt.pth')
