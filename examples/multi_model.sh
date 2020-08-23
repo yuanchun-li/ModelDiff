@@ -1,6 +1,5 @@
 
-
-for TARGET in targeted
+for CMP in ddv 
 do
     for SIMILAR in teacher 
     do
@@ -8,8 +7,9 @@ do
     CUDA_VISIBLE_DEVICES=$1 \
     python compare.py \
     --similar_mode $SIMILAR \
-    --cmp_mode ddv \
-    --target_mode $TARGET \
+    --cmp_mode $CMP \
+    --profiling_mode multi_model \
 
     done
 done
+
