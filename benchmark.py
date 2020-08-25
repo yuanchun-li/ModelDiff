@@ -36,11 +36,12 @@ SEED = 98
 INPUT_SHAPE = (3, 224, 224)
 BATCH_SIZE = 64
 TRAIN_ITERS = 100000    # TODO update the number of iterations
-TRANSFER_ITERS = 30000
-QUANTIZE_ITERS = 30000  # may be useless
-PRUNE_ITERS = 30000
-DISTILL_ITERS = 30000
-STEAL_ITERS = 30000
+DEFAULT_ITERS = 10000   # TODO change back to 30000
+TRANSFER_ITERS = DEFAULT_ITERS
+QUANTIZE_ITERS = DEFAULT_ITERS  # may be useless
+PRUNE_ITERS = DEFAULT_ITERS
+DISTILL_ITERS = DEFAULT_ITERS
+STEAL_ITERS = DEFAULT_ITERS
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 CONTINUE_TRAIN = False  # whether to continue previous training
 
@@ -471,7 +472,8 @@ class ImageBenchmark:
         self.logger = logging.getLogger('ImageBench')
         self.datasets_dir = datasets_dir
         self.models_dir = models_dir
-        self.datasets = ['MIT67', 'Flower102', 'SDog120']
+        # self.datasets = ['MIT67', 'Flower102', 'SDog120']
+        self.datasets = ['Flower102', 'SDog120']
         # self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
         self.archs = ['mbnetv2', 'resnet18']
         # For debug
@@ -614,6 +616,21 @@ class ImageBenchmark:
         for transfer_model in transfer_models:
             for arch_id in self.archs:
                 yield transfer_model.steal(arch_id=arch_id)
+
+        # variations of retrained models
+        # - M_{i,x}/{prune-p} -- Prune M_{i,x} with pruning ratio = p
+        for retrain_model in retrain_models:
+            for pr in prune_ratios:
+                yield retrain_model.prune(prune_ratio=pr)
+
+        # - M_{i,x}/{distill} -- Distill M_{i,x}
+        for retrain_model in retrain_models:
+            yield retrain_model.distill()
+
+        # - M_{i,x}/{steal-j} -- Steal M_{i,x} to A_j
+        for retrain_model in retrain_models:
+            for arch_id in self.archs:
+                yield retrain_model.steal(arch_id=arch_id)
 
 
 def parse_args():
