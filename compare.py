@@ -11,17 +11,22 @@ import random
 from benchmark import ImageBenchmark
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--similar_mode", default="root", choices=["root", "teacher"])
-parser.add_argument("--cmp_mode", default="ddv", choices=["ddv", "ddm"])
+parser.add_argument("--similar_mode", default="root", 
+                    # choices=["root", "teacher"]
+                    )
+parser.add_argument("--cmp_mode", default="ddv",
+                    #  choices=["ddv", "ddm"]
+                    )
 parser.add_argument("--target_mode", default="targeted", 
                     # choices=["targeted", "untargeted", "random"]
                 )
 parser.add_argument("--profiling_mode", default="hybrid", 
                     # choices=["normal", "hybrid"]
                 )
+parser.add_argument("--pair_mode", default="all")
 parser.add_argument("--seed_batch_size", default=50, type=int)
 args = parser.parse_args()
-args.dir = osp.join( "relation", f"{args.profiling_mode}_{args.cmp_mode}_{args.target_mode}_{args.similar_mode}")
+args.dir = osp.join( "relation", f"{args.profiling_mode}_{args.cmp_mode}_{args.target_mode}_{args.similar_mode}_{args.pair_mode}")
 os.makedirs(args.dir, exist_ok=True)
 
 np.random.seed(3)
@@ -242,13 +247,14 @@ def compare_with_adv(model1, model2, truth=-1):
         inputs = hybrid_inputs
         
 
-
-
     
     if args.cmp_mode == "ddv":
         sim = md.compute_similarity_with_ddv(inputs)
     elif args.cmp_mode == "ddm":
         sim = md.compute_similarity_with_ddm(inputs)
+    elif args.cmp_mode == "ipguard":
+        assert args.profiling_mode == "hybrid"
+        sim = md.compute_similarity_with_IPGuard(inputs)
     # sim = md.compute_similarity_with_ddv(adv_inputs)
     # print(f' compute_similarity_with_ddv,adv_inputs is {sim}, truth is {truth}')
     # sim = md.compute_similarity_with_ddv(seed_inputs)
@@ -261,7 +267,7 @@ def compare_with_adv(model1, model2, truth=-1):
     
     
     
-path = osp.join("relation", f"relation_{args.similar_mode}.pkl")
+path = osp.join("relation", f"relation_{args.pair_mode}_{args.similar_mode}.pkl")
 with open(path, "rb") as f:
     model_relation = pickle.load(f)
 
@@ -274,7 +280,7 @@ keys = model_relation.keys()
     
 # for cnt, (i, relation) in enumerate(model_relation.items()):
 for cnt, i in enumerate(keys):
-    path = osp.join("relation", f"relation_{args.similar_mode}.pkl")
+    path = osp.join("relation", f"relation_{args.pair_mode}_{args.similar_mode}.pkl")
     with open(path, "rb") as f:
         model_relation = pickle.load(f)
     relation = model_relation[i]
@@ -314,7 +320,7 @@ for cnt, i in enumerate(keys):
 path = osp.join(args.dir , f"relation_score.pkl")
 with open(path, "wb") as f:
     pickle.dump(model_relation_log, f)
-path = osp.join("relation", f"relation_{args.similar_mode}.pkl")
+path = osp.join("relation", f"relation_{args.pair_mode}_{args.similar_mode}.pkl")
 with open(path, "rb") as f:
     model_relation = pickle.load(f)
 # log_file.close()

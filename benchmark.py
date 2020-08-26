@@ -486,8 +486,8 @@ class ImageBenchmark:
         # self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
         self.archs = ['mbnetv2', 'resnet18']
         # For debug
-        self.datasets = ['MIT67', 'Flower102', 'SDog120']
-        self.archs = ['mbnetv2', 'resnet18']
+        # self.datasets = ['MIT67', 'Flower102', 'SDog120']
+        # self.archs = ['mbnetv2', 'resnet18']
 
     def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shuffle=True, seed=SEED, shot=-1):
         """

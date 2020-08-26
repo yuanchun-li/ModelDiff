@@ -88,6 +88,21 @@ class ModelDiff(ModelComparison):
         model_similarity = self.compute_similarity_with_ddm(profiling_inputs)
         return model_similarity
     
+    def compute_similarity_with_IPGuard(self, profiling_inputs):
+        n_pairs = int(len(list(profiling_inputs)) / 2)
+        normal_input = profiling_inputs[:n_pairs]
+        adv_input = profiling_inputs[n_pairs:]
+        
+        out = self.model1.batch_forward(adv_input).to("cpu").numpy()
+        normal_pred = out.argmax(axis=1)
+        out = self.model2.batch_forward(adv_input).to("cpu").numpy()
+        adv_pred = out.argmax(axis=1)
+        
+        consist = int( (normal_pred == adv_pred).sum() )
+        sim = consist / n_pairs
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+    
     def compute_similarity_with_ddv(self, profiling_inputs):
         self.logger.info(f'computing DDVs')
         ddv1 = self.compute_ddv(self.model1, profiling_inputs)
