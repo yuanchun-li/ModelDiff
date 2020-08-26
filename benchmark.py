@@ -9,6 +9,7 @@ import pathlib
 import re
 import functools
 import torch
+import torch.nn as nn
 import torchvision
 import torchvision.models as models
 import numpy as np
@@ -48,7 +49,7 @@ CONTINUE_TRAIN = False  # whether to continue previous training
 # for debug
 TRAIN_ITERS = 10000
 TRANSFER_ITERS = 10000
-PRUNE_ITERS = 10000
+PRUNE_ITERS = 100
 DISTILL_ITERS = 10000
 STEAL_ITERS = 10000
 
@@ -344,6 +345,7 @@ class ModelWrapper:
             )
             finetuner.train()
             self.save_torch_model(student_model)
+            finetuner.final_check_param_num()
         elif method == 'distill':
             student_model = eval(f'{self.arch_id}_dropout')(
                 pretrained=False,
@@ -665,6 +667,15 @@ def parse_args():
     args, unknown = parser.parse_known_args()
     return args
 
+def check_param_num(model, name):
+    total = sum([module.weight.nelement() for module in model.modules() if isinstance(module, nn.Conv2d) ])
+    num = total
+    for m in model.modules():
+        if ( isinstance(m, nn.Conv2d) ):
+            num -= int((m.weight.data == 0).sum())
+    ratio = (total - num) / total
+    log = f"===>{name}: Total {total}, current {num}, prune ratio {ratio:2f}"
+    print(log)
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s")
@@ -697,6 +708,7 @@ if __name__ == '__main__':
     models_to_gen_str = "\n".join([model_wrapper.__str__() for model_wrapper in models_to_gen])
     print(f'{len(models_to_gen)} models to generate: \n{models_to_gen_str}')
     for model_wrapper in models_to_gen:
+            
         model_wrapper.gen_model(regenerate=args.regenerate)
     # print(benchmark.model2variations)
 

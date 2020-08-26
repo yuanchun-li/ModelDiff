@@ -34,7 +34,7 @@ random.seed(3)
 debug=False
 
 name_to_model = {}
-bench = ImageBenchmark()
+bench = ImageBenchmark(datasets_dir="../data")
 models = list(bench.list_models(fc=False))
 for i, model in enumerate(models):
     if not model.torch_model_exists():
@@ -318,9 +318,13 @@ for cnt, i in enumerate(keys):
     #     continue
     model_relation_log[i] = {}
     model = relation["model"]
-
     similar_model = relation["similar"][0]
     dissimilar_models = relation["dissimilar"]
+    
+    model.benchmark = bench
+    similar_model.benchmark = bench
+    for m in dissimilar_models:
+        m.benchmark = bench
     similar_score = compare_with_adv(model, similar_model)
     model_relation_log[i]["sim_score"] = [similar_score]
     

@@ -19,6 +19,7 @@ parser.add_argument("--target_mode", default="targeted", choices=["targeted", "u
 parser.add_argument("--profiling_mode", default="hybrid", 
                     # choices=["normal", "hybrid"]
                 )
+parser.add_argument("--pair_mode", default="all")
 parser.add_argument("--seed_batch_size", default=50, type=int)
 args = parser.parse_args()
 args.dir = osp.join( "relation", f"{args.profiling_mode}_{args.cmp_mode}_{args.target_mode}_{args.similar_mode}")
@@ -27,7 +28,7 @@ os.makedirs(args.dir, exist_ok=True)
 path = osp.join(args.dir, "relation_score.pkl")
 with open(path, "rb") as f:
     model_relation_log = pickle.load(f)
-path = osp.join("relation", f"relation_{args.similar_mode}.pkl")
+path = osp.join("relation", f"relation_{args.pair_mode}_{args.similar_mode}.pkl")
 with open(path, "rb") as f:
     model_relation = pickle.load(f)
     
@@ -94,7 +95,7 @@ for k in prune_ratio.keys():
     for ratio in prune_ratio[k].keys():
         prune_ratio[k][ratio] = np.mean(prune_ratio[k][ratio])
 
-FONTSIZE=20
+FONTSIZE=30
 LINEWIDTH=6
 plt.figure(figsize=(16,6))
 
@@ -112,7 +113,7 @@ plt.plot(idx, y, label="Flower", color="green", alpha=0.5, linewidth=LINEWIDTH)
 
 plt.xticks(idx, x, fontsize=FONTSIZE)
 plt.xlabel("Transfer ratio", fontsize=FONTSIZE)
-plt.yticks(fontsize=FONTSIZE)
+plt.yticks([0.94, 0.95, 0.96, 0.97, 0.98], fontsize=FONTSIZE)
 plt.ylabel("Similarity", fontsize=FONTSIZE)
 
 
@@ -130,7 +131,7 @@ plt.plot(idx, y, label="Flower", color="green", alpha=0.5, linewidth=LINEWIDTH)
 
 plt.xticks(idx, x, fontsize=FONTSIZE)
 plt.xlabel("Prune ratio", fontsize=FONTSIZE)
-plt.yticks(fontsize=FONTSIZE)
+plt.yticks([0.91, 0.93, 0.95, 0.97], fontsize=FONTSIZE)
 
 
 plt.legend(loc="lower left", fontsize=FONTSIZE)
