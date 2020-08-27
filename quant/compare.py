@@ -322,12 +322,24 @@ for cnt, i in enumerate(keys):
     dissimilar_models = relation["dissimilar"]
     
     model.benchmark = bench
-    model.torch_model_path = "../" + model.torch_model_path
+    if model.torch_model_path[:2] != "..":
+        model.torch_model_path = "../" + model.torch_model_path
     similar_model.benchmark = bench
-    similar_model.torch_model_path = "../" + similar_model.torch_model_path
+    if similar_model.torch_model_path[:2] != "..":
+        similar_model.torch_model_path = "../" + similar_model.torch_model_path
     for m in dissimilar_models:
         m.benchmark = bench
-        m.torch_model_path = "../" + m.torch_model_path
+        if m.torch_model_path[:2] != "..":
+            m.torch_model_path = "../" + m.torch_model_path
+        
+    assert os.path.exists(model.torch_model_path)
+    assert os.path.exists(similar_model.torch_model_path)
+    for m in dissimilar_models:
+        if not os.path.exists(m.torch_model_path):
+            st()
+        
+    continue
+    
     similar_score = compare_with_adv(model, similar_model)
     model_relation_log[i]["sim_score"] = [similar_score]
     
