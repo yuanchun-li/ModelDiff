@@ -338,7 +338,7 @@ for cnt, i in enumerate(keys):
         if not os.path.exists(m.torch_model_path):
             st()
         
-    continue
+    
     
     similar_score = compare_with_adv(model, similar_model)
     model_relation_log[i]["sim_score"] = [similar_score]
