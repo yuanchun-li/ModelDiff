@@ -13,6 +13,8 @@
 def valid_quant_model(model):
     if "quantize" not in model.__str__():
         return False
+    if "qint8" not in model.name():
+        return False
     return True
 
 def valid_model(model):
