@@ -1,0 +1,120 @@
+pretrain(mbnetv2,ImageNet)-transfer(Flower102,0.1)-quantize(qint8)-
+	similar:
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,0.1)-, score 1.000
+	dissimilar:
+		pretrain(resnet18,ImageNet)-transfer(Flower102,0.1)-prune(0.2)-, score 0.914
+		train(resnet18,Flower102)-prune(0.5)-, score 0.719
+		pretrain(resnet18,ImageNet)-transfer(SDog120,0.5)-, score 0.825
+		train(mbnetv2,SDog120)-, score 0.718
+		train(resnet18,Flower102)-prune(0.2)-, score 0.759
+		dissimilar score mean 0.787
+pretrain(mbnetv2,ImageNet)-transfer(Flower102,0.5)-quantize(qint8)-
+	similar:
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,0.5)-, score 1.000
+	dissimilar:
+		pretrain(resnet18,ImageNet)-transfer(Flower102,1)-prune(0.2)-, score 0.837
+		train(resnet18,Flower102)-prune(0.2)-, score 0.791
+		train(resnet18,Flower102)-prune(0.5)-, score 0.836
+		train(mbnetv2,SDog120)-steal(resnet18)-, score 0.645
+		train(mbnetv2,SDog120)-, score 0.720
+		dissimilar score mean 0.766
+pretrain(mbnetv2,ImageNet)-transfer(Flower102,1)-quantize(qint8)-
+	similar:
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,1)-, score 1.000
+	dissimilar:
+		pretrain(resnet18,ImageNet)-transfer(SDog120,0.5)-, score 0.755
+		pretrain(resnet18,ImageNet)-transfer(SDog120,1)-prune(0.8)-, score 0.774
+		pretrain(resnet18,ImageNet)-transfer(Flower102,1)-prune(0.8)-, score 0.785
+		train(resnet18,Flower102)-prune(0.5)-, score 0.749
+		pretrain(resnet18,ImageNet)-transfer(SDog120,0.1)-steal(resnet18)-, score 0.784
+		dissimilar score mean 0.769
+pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.1)-quantize(qint8)-
+	similar:
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.1)-, score 1.000
+	dissimilar:
+		pretrain(resnet18,ImageNet)-transfer(SDog120,1)-steal(resnet18)-, score 0.757
+		train(mbnetv2,Flower102)-distill()-, score 0.673
+		pretrain(resnet18,ImageNet)-transfer(Flower102,1)-prune(0.2)-, score 0.854
+		pretrain(resnet18,ImageNet)-transfer(SDog120,0.5)-steal(resnet18)-, score 0.735
+		pretrain(resnet18,ImageNet)-transfer(SDog120,1)-prune(0.8)-, score 0.770
+		dissimilar score mean 0.758
+pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.5)-quantize(qint8)-
+	similar:
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.5)-, score 1.000
+	dissimilar:
+		pretrain(resnet18,ImageNet)-transfer(Flower102,1)-steal(resnet18)-, score 0.775
+		train(resnet18,SDog120)-distill()-, score 0.810
+		pretrain(resnet18,ImageNet)-transfer(SDog120,1)-distill()-, score 0.819
+		train(resnet18,SDog120)-steal(mbnetv2)-, score 0.749
+		pretrain(resnet18,ImageNet)-transfer(Flower102,0.5)-steal(mbnetv2)-, score 0.781
+		dissimilar score mean 0.787
+pretrain(mbnetv2,ImageNet)-transfer(SDog120,1)-quantize(qint8)-
+	similar:
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,1)-, score 1.000
+	dissimilar:
+		pretrain(resnet18,ImageNet)-transfer(Flower102,1)-distill()-, score 0.817
+		pretrain(resnet18,ImageNet)-transfer(SDog120,0.1)-prune(0.8)-, score 0.760
+		pretrain(resnet18,ImageNet)-transfer(Flower102,1)-prune(0.8)-, score 0.786
+		pretrain(resnet18,ImageNet)-transfer(SDog120,0.5)-prune(0.2)-, score 0.828
+		pretrain(resnet18,ImageNet)-transfer(SDog120,0.5)-, score 0.852
+		dissimilar score mean 0.809
+pretrain(resnet18,ImageNet)-transfer(Flower102,0.1)-quantize(qint8)-
+	similar:
+		pretrain(resnet18,ImageNet)-transfer(Flower102,0.1)-, score 1.000
+	dissimilar:
+		train(resnet18,SDog120)-prune(0.2)-, score 0.754
+		train(resnet18,SDog120)-prune(0.2)-, score 0.647
+		train(resnet18,SDog120)-, score 0.749
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,1)-, score 0.848
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,1)-, score 0.750
+		dissimilar score mean 0.750
+pretrain(resnet18,ImageNet)-transfer(Flower102,0.5)-quantize(qint8)-
+	similar:
+		pretrain(resnet18,ImageNet)-transfer(Flower102,0.5)-, score 1.000
+	dissimilar:
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.1)-steal(mbnetv2)-, score 0.772
+		train(resnet18,SDog120)-distill()-, score 0.839
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.1)-, score 0.718
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,0.5)-distill()-, score 0.809
+		train(resnet18,SDog120)-steal(resnet18)-, score 0.717
+		dissimilar score mean 0.771
+pretrain(resnet18,ImageNet)-transfer(Flower102,1)-quantize(qint8)-
+	similar:
+		pretrain(resnet18,ImageNet)-transfer(Flower102,1)-, score 1.000
+	dissimilar:
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,1)-, score 0.740
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,1)-prune(0.8)-, score 0.692
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.5)-, score 0.749
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,1)-distill()-, score 0.774
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,0.5)-steal(mbnetv2)-, score 0.696
+		dissimilar score mean 0.730
+pretrain(resnet18,ImageNet)-transfer(SDog120,0.1)-quantize(qint8)-
+	similar:
+		pretrain(resnet18,ImageNet)-transfer(SDog120,0.1)-, score 1.000
+	dissimilar:
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.1)-steal(mbnetv2)-, score 0.741
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.1)-steal(mbnetv2)-, score 0.774
+		train(mbnetv2,SDog120)-prune(0.2)-, score 0.640
+		train(mbnetv2,SDog120)-steal(resnet18)-, score 0.730
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.5)-steal(mbnetv2)-, score 0.746
+		dissimilar score mean 0.726
+pretrain(resnet18,ImageNet)-transfer(SDog120,0.5)-quantize(qint8)-
+	similar:
+		pretrain(resnet18,ImageNet)-transfer(SDog120,0.5)-, score 1.000
+	dissimilar:
+		train(resnet18,SDog120)-distill()-, score 0.802
+		train(mbnetv2,SDog120)-steal(resnet18)-, score 0.738
+		train(mbnetv2,Flower102)-, score 0.545
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,1)-distill()-, score 0.740
+		train(resnet18,SDog120)-, score 0.693
+		dissimilar score mean 0.704
+pretrain(resnet18,ImageNet)-transfer(SDog120,1)-quantize(qint8)-
+	similar:
+		pretrain(resnet18,ImageNet)-transfer(SDog120,1)-, score 1.000
+	dissimilar:
+		pretrain(mbnetv2,ImageNet)-transfer(SDog120,0.1)-steal(mbnetv2)-, score 0.756
+		train(mbnetv2,SDog120)-prune(0.8)-, score 0.485
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,0.1)-steal(mbnetv2)-, score 0.644
+		pretrain(mbnetv2,ImageNet)-transfer(Flower102,0.1)-steal(mbnetv2)-, score 0.728
+		train(resnet18,SDog120)-prune(0.8)-, score 0.694
+		dissimilar score mean 0.661

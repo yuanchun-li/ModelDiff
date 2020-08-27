@@ -1,4 +1,4 @@
-export PYTHONPATH=..:../..:$PYTHONPATH
+export PYTHONPATH=..:$PYTHONPATH
 
 
 for TARGET in random
