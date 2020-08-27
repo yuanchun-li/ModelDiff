@@ -16,6 +16,7 @@ import numpy as np
 from scipy import spatial
 from abc import ABC, abstractmethod
 from pdb import set_trace as st
+import torch.nn as nn
 
 from utils import lazy_property, Utils
 
@@ -87,6 +88,241 @@ class ModelDiff(ModelComparison):
 
         model_similarity = self.compute_similarity_with_ddm(profiling_inputs)
         return model_similarity
+    
+    def compute_similarity_with_IPGuard(self, profiling_inputs):
+        n_pairs = int(len(list(profiling_inputs)) / 2)
+        normal_input = profiling_inputs[:n_pairs]
+        adv_input = profiling_inputs[n_pairs:]
+        
+        out = self.model1.batch_forward(adv_input).to("cpu").numpy()
+        normal_pred = out.argmax(axis=1)
+        out = self.model2.batch_forward(adv_input).to("cpu").numpy()
+        adv_pred = out.argmax(axis=1)
+        
+        consist = int( (normal_pred == adv_pred).sum() )
+        sim = consist / n_pairs
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+    
+    def compute_similarity_with_weight(self):
+        name_to_modules = {}
+        for name, module in self.model1.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name] = [module.weight]
+        for name, module in self.model2.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name].append(module.weight)
+        layer_dist = []
+        for name, pack in name_to_modules.items():
+            weight1, weight2 = pack
+            # print(name, float((weight1==0).sum() / weight1.numel()))
+            weight1 = weight1.view(-1)
+            weight2 = weight2.view(-1)
+            dist = nn.CosineSimilarity(dim=0)(weight1, weight2)
+            layer_dist.append(dist.item())
+        sim = np.mean(layer_dist)
+                
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+    
+    def compute_similarity_with_abs_weight(self):
+        name_to_modules = {}
+        for name, module in self.model1.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name] = [module.weight]
+        for name, module in self.model2.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name].append(module.weight)
+        layer_dist = []
+        for name, pack in name_to_modules.items():
+            weight1, weight2 = pack
+            dist = 1 - ((weight1-weight2)).abs().mean()
+            layer_dist.append(dist.item())
+        sim = np.mean(layer_dist)
+                
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+    
+    def compute_similarity_with_bn_weight(self):
+        name_to_modules = {}
+        for name, module in self.model1.torch_model.named_modules():
+            if isinstance(module, nn.BatchNorm2d):
+                name_to_modules[name] = [module.weight]
+        for name, module in self.model2.torch_model.named_modules():
+            if isinstance(module, nn.BatchNorm2d):
+                name_to_modules[name].append(module.weight)
+        layer_dist = []
+        for name, pack in name_to_modules.items():
+            weight1, weight2 = pack
+            weight1 = weight1.view(-1)
+            weight2 = weight2.view(-1)
+            dist = nn.CosineSimilarity(dim=0)(weight1, weight2)
+            layer_dist.append(dist.item())
+        sim = np.mean(layer_dist)
+                
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+    
+    def compute_similarity_with_conv_bn_weight(self):
+        name_to_modules = {}
+        for name, module in self.model1.torch_model.named_modules():
+            if isinstance(module, nn.BatchNorm2d) or isinstance(module, nn.Conv2d):
+                name_to_modules[name] = [module.weight]
+        for name, module in self.model2.torch_model.named_modules():
+            if isinstance(module, nn.BatchNorm2d) or isinstance(module, nn.Conv2d):
+                name_to_modules[name].append(module.weight)
+        layer_dist = []
+        for name, pack in name_to_modules.items():
+            weight1, weight2 = pack
+            weight1 = weight1.view(-1)
+            weight2 = weight2.view(-1)
+            dist = nn.CosineSimilarity(dim=0)(weight1, weight2)
+            layer_dist.append(dist.item())
+        sim = np.mean(layer_dist)
+                
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+    
+    def compute_similarity_with_identical_weight(self):
+        name_to_modules = {}
+        for name, module in self.model1.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name] = [module.weight]
+        for name, module in self.model2.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name].append(module.weight)
+        layer_dist = []
+        for name, pack in name_to_modules.items():
+            weight1, weight2 = pack
+            identical = (weight1==weight2).sum()
+            dist = float(identical / weight1.numel())
+            layer_dist.append(dist)
+            
+        sim = np.mean(layer_dist)
+                
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+
+    def compute_similarity_with_whole_weight(self):
+        name_to_modules = {}
+        for name, module in self.model1.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name] = [module.weight]
+        for name, module in self.model2.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name].append(module.weight)
+        model1_weight, model2_weight = [], []
+        for name, pack in name_to_modules.items():
+            weight1, weight2 = pack
+            if (weight1==weight2).all():
+                continue
+            weight1 = weight1.view(-1)
+            weight2 = weight2.view(-1)
+            model1_weight.append(weight1)
+            model2_weight.append(weight2)
+        model1_weight = torch.cat(model1_weight)
+        model2_weight = torch.cat(model2_weight)
+        sim = nn.CosineSimilarity(dim=0)(model1_weight, model2_weight).item()
+                
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+    
+    def compute_similarity_with_feature(self, profiling_inputs):
+        # Used to matching features
+        def record_act(self, input, output):
+            self.out = output
+        
+        name_to_modules = {}
+        for name, module in self.model1.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name] = [module]
+                module.register_forward_hook(record_act)
+        for name, module in self.model2.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                name_to_modules[name].append(module)
+                module.register_forward_hook(record_act)
+        # print(name_to_modules.keys())
+        self.model1.batch_forward(profiling_inputs)
+        self.model2.batch_forward(profiling_inputs)
+        
+        feature_dists = []
+        b = profiling_inputs.shape[0]
+        for name, pack in name_to_modules.items():
+            module1, module2 = pack
+            feature1 = module1.out.view(-1)
+            feature2 = module2.out.view(-1)
+            dist = nn.CosineSimilarity(dim=0)(feature1, feature2).item()
+            feature_dists.append(dist)
+            del module1.out, module2.out, feature1, feature2
+        sim = np.mean(feature_dists)
+        
+                
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+    
+    def compute_similarity_with_last_feature(self, profiling_inputs):
+        # Used to matching features
+        def record_act(self, input, output):
+            self.out = output
+        
+        name_to_modules = {}
+        for name, module in self.model1.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                module1 = module
+        for name, module in self.model2.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                module2 = module
+        module1.register_forward_hook(record_act)
+        module2.register_forward_hook(record_act)
+        # print(name_to_modules.keys())
+        self.model1.batch_forward(profiling_inputs)
+        self.model2.batch_forward(profiling_inputs)
+
+        feature1 = module1.out.view(-1)
+        feature2 = module2.out.view(-1)
+        dist = nn.CosineSimilarity(dim=0)(feature1, feature2).item()
+        del module1.out, module2.out, feature1, feature2
+        sim = dist
+        
+                
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
+    
+    def compute_similarity_with_last_feature_svd(self, profiling_inputs):
+        # Used to matching features
+        def record_act(self, input, output):
+            self.out = output
+        
+        name_to_modules = {}
+        for name, module in self.model1.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                module1 = module
+        for name, module in self.model2.torch_model.named_modules():
+            if isinstance(module, nn.Conv2d):
+                module2 = module
+        module1.register_forward_hook(record_act)
+        module2.register_forward_hook(record_act)
+        # print(name_to_modules.keys())
+        self.model1.batch_forward(profiling_inputs)
+        self.model2.batch_forward(profiling_inputs)
+        
+
+        feature1 = module1.out
+        feature2 = module2.out
+        b, c, _, _ = feature1.shape
+        feature1 = feature1.view(b,c,-1)
+        feature2 = feature2.view(b,c,-1)
+        for i in range(b):
+            u1,s1,v1 = torch.svd(feature1[i])
+            u2,s2,v2 = torch.svd(feature2[i])
+            st()
+        dist = nn.CosineSimilarity(dim=0)(feature1, feature2).item()
+        del module1.out, module2.out, feature1, feature2
+        sim = dist
+        
+                
+        self.logger.info(f'  model similarity: {sim}')
+        return sim
     
     def compute_similarity_with_ddv(self, profiling_inputs):
         self.logger.info(f'computing DDVs')
