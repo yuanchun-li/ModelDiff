@@ -98,7 +98,10 @@ for i, model in enumerate(models):
         pair_model = random.choice(dissim_arch_list[arch])
         # print(pair_model.name())
         # print(not valid_model(pair_model), (pair_model.name() == model.name()), (dataset not in pair_model.name()) )
-        if (not valid_model(pair_model)) or (pair_model.name() == model.name()) or pair_model in model_relation[i]["dissimilar"] :
+        if ( (not valid_model(pair_model)) or 
+            (pair_model.name() == model.name()) or 
+            pair_model in model_relation[i]["dissimilar"]  or 
+            "quant" in pair_model.name() ):
             continue
         pair_components = pair_model.name().split('-')
         if model_components[0] != pair_components[0]:

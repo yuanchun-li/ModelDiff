@@ -63,7 +63,7 @@ for i, model in enumerate(models):
     
     while True:
         pair_model = random.choice(models)
-        if not valid_model(pair_model) or pair_model.name() == model.name():
+        if not valid_model(pair_model) or pair_model.name() == model.name() or "quant" in pair_model.name():
             continue
         pair_components = pair_model.name().split('-')
         if model_components[0] != pair_components[0]:
