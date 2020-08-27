@@ -69,7 +69,10 @@ for i, model in enumerate(models):
         pair_model = random.choice(models)
         # print(pair_model.name())
         # print(not valid_model(pair_model), (pair_model.name() == model.name()), (dataset not in pair_model.name()) )
-        if (not valid_model(pair_model)) or (pair_model.name() == model.name()) or (dataset not in pair_model.name()) :
+        if ( (not valid_model(pair_model)) or 
+            (pair_model.name() == model.name()) or 
+            (dataset not in pair_model.name())  or 
+            "quant" in pair_model.name()):
             continue
         pair_components = pair_model.name().split('-')
         if model_components[0] != pair_components[0]:
