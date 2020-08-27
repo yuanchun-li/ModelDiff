@@ -160,7 +160,12 @@ class ModelWrapper:
     
     @lazy_property
     def torch_model_on_device(self):
-        return self.torch_model.to(DEVICE)
+        m = re.match(r'(\S+)\((\S*)\)', self.trans_str)
+        method = m.group(1)
+        if method == "quantize":
+            return self.torch_model.to("cpu")
+        else:
+            return self.torch_model.to(DEVICE)
 
     def load_saved_weights(self, torch_model):
         """
@@ -194,7 +199,12 @@ class ModelWrapper:
     def batch_forward(self, inputs):
         if isinstance(inputs, np.ndarray):
             inputs = torch.from_numpy(inputs)
-        inputs = inputs.to(DEVICE)
+        m = re.match(r'(\S+)\((\S*)\)', self.trans_str)
+        method = m.group(1)
+        if method == "quantize":
+            inputs = inputs.to("cpu")
+        else:
+            inputs = inputs.to(DEVICE)
         self.torch_model_on_device.eval()
         with torch.no_grad():
             return self.torch_model_on_device(inputs)
