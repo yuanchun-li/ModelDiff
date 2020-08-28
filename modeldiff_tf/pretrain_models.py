@@ -25,20 +25,21 @@ if __name__=="__main__":
     from dataset import MyDataset
     
     d = MyDataset("image")
-    samples = d.sample(1)
+    samples = d.sample(100)
     samples = np.concatenate(samples)
     samples = preprocess_input(samples)
     
     pred_dict = {}
     for name, model in pretrain_models.items():
         output = model.predict(samples)
-        preds = output.argmax(axis=1)
+        preds = output
         pred_dict[name] = output
-        
+        print(name, [x.argmax(axis=-1) for x in preds])
+
+    """    
     for i in range(1):
         for k in pretrain_models.keys():
             out = pred_dict[k][i:i+1]
             top3 = decode_predictions(out, top=5)[0]
             print(k, top3)
-        
-    
+    """

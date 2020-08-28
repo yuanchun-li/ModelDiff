@@ -98,20 +98,25 @@ class MyDataset:
         self._load_dataset()
 
     def _load_dataset(self):
-        file_names = os.listdir(path='imagenet_samples')
-        self.file_path = [os.path.join('imagenet_samples', name) for name in file_names]
+        file_names = os.listdir(path='/home/yuancli/data/imagenet_samples')
+        self.file_path = [os.path.join('/home/yuancli/data/imagenet_samples', name) for name in file_names]
         
     def sample(self, size=50):
-        sample_path = random.sample(self.file_path, size)
+        # self.sample_path = random.sample(self.file_path, size)
+        self.sample_path = sorted(self.file_path)[:size]
         image_list = []
         for i in range(size):
-            img = image.load_img(sample_path[i], target_size=(224, 224))
+            img = image.load_img(self.sample_path[i], target_size=(224, 224))
             x = image.img_to_array(img)
+            # x = x / 255 * 2 - 1
             x = np.expand_dims(x, axis=0)
             image_list.append(x)
-            print(sample_path[i])
+            print(self.sample_path[i])
         # sample = np.concatenate(image_list)
         return image_list
+
+    def get_sample_path(self):
+        return self.sample_path
 
 if __name__=="__main__":
         
