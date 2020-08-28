@@ -7,11 +7,12 @@ import argparse
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from utils import lazy_property
+from pdb import set_trace as st
 
 BATCH_SIZE = 128
 
 
-class MyDataset:
+class MyDataset1:
     def __init__(self, name):
         self.name = name
         self.input_shape = None
@@ -78,3 +79,41 @@ class MyDataset:
             metrics=['accuracy'])
         return keras_model
 
+from tensorflow.keras.preprocessing import image
+
+import numpy as np
+import random
+np.random.seed(3)
+random.seed(3)
+
+class MyDataset:
+    def __init__(self, name):
+        self.name = name
+        self.input_shape = None
+        self.output_shape = None
+        self.n_classes = None
+        self.n_examples = 0
+        self.dataset = None
+        self.info = None
+        self._load_dataset()
+
+    def _load_dataset(self):
+        file_names = os.listdir(path='imagenet_samples')
+        self.file_path = [os.path.join('imagenet_samples', name) for name in file_names]
+        
+    def sample(self, size=50):
+        sample_path = random.sample(self.file_path, size)
+        image_list = []
+        for i in range(size):
+            img = image.load_img(sample_path[i], target_size=(224, 224))
+            x = image.img_to_array(img)
+            x = np.expand_dims(x, axis=0)
+            image_list.append(x)
+            print(sample_path[i])
+        # sample = np.concatenate(image_list)
+        return image_list
+
+if __name__=="__main__":
+        
+    d = MyDataset("Imagenet")
+    d.sample()

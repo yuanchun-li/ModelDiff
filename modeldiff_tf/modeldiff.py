@@ -66,10 +66,21 @@ class Model:
         """
         return self.interpreter.get_tensor_details()
 
+    # def get_seed_inputs(self, n):
+    #     inputs = []
+    #     from dataset import MyDataset
+    #     ds = MyDataset('mnist')
+    #     for images, labels in ds.test_ds.shuffle(n*10).batch(1).take(n):
+    #         # print(images.shape)
+    #         inputs.append(images)
+    #     # for i in range(n):
+    #     #     # inputs.append(np.random.normal(loc=0.5, size=self.input_shape).astype(np.float32))
+    #     #     inputs.append(np.random.random_sample(self.input_shape).astype(np.float32))
+    #     return inputs
     def get_seed_inputs(self, n):
         inputs = []
         from dataset import MyDataset
-        ds = MyDataset('mnist')
+        ds = MyDataset('Imagenet')
         for images, labels in ds.test_ds.shuffle(n*10).batch(1).take(n):
             # print(images.shape)
             inputs.append(images)
