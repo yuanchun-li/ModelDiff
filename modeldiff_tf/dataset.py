@@ -96,6 +96,7 @@ class MyDataset:
         self.dataset = None
         self.info = None
         self._load_dataset()
+        self.curr_idx = 0
 
     def _load_dataset(self):
         file_names = os.listdir(path='/home/yuancli/data/imagenet_samples')
@@ -103,7 +104,11 @@ class MyDataset:
         
     def sample(self, size=50):
         # self.sample_path = random.sample(self.file_path, size)
-        self.sample_path = sorted(self.file_path)[:size]
+        self.sample_path = self.file_path[self.curr_idx:self.curr_idx+size]
+        self.curr_idx += size
+        if self.curr_idx >= len(self.file_path):
+            self.curr_idx = 0
+
         image_list = []
         for i in range(size):
             img = image.load_img(self.sample_path[i], target_size=(224, 224))

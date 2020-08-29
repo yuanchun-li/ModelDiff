@@ -19,6 +19,7 @@ from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
 if __name__ == "__main__":
     # instantiate a model
+    dataset = MyDataset("Imagenet")
     for model_name in pretrain_models:
         print(model_name)
         model = pretrain_models[model_name]
@@ -29,75 +30,63 @@ if __name__ == "__main__":
         bounds = (-1, 1)
         fmodel = TensorFlowModel(model, bounds, preprocessing=pre)
 
-        # get data and test the model
-        # wrapping the tensors with ep.astensors is optional, but it allows
-        # us to work with EagerPy tensors in the following
-        dataset = MyDataset("Imagenet")
-        sampled_data = dataset.sample(100)
-        # images = ep.astensor(tf.convert_to_tensor(np.vstack(sampled_data)))
-        images = ep.astensor(tf.convert_to_tensor(preprocess_input(np.concatenate(sampled_data))))
-        labels = ep.astensor(tf.convert_to_tensor(np.stack(random.sample(range(0, 1000), 100))))
-        print(type(images))
-        print(images.dtype)
-        print(images.dtype)
-        print(type(labels))
-        print(images.dtype)
-        print("min", np.min(images.numpy()), "max", np.max(images.numpy()))
-        """
-        images, labels = ep.astensors(*samples(fmodel, dataset="imagenet", batchsize=100))
-        print("min", np.min(images.numpy()), "max", np.max(images.numpy()))
-        print(type(images))
-        print(images.dtype)
-        print(type(labels))
-        print(images.dtype)
-        """
-        # print(accuracy(fmodel, images, labels))
-        predictions = fmodel(images).argmax(axis=-1)
-        print(predictions.numpy())
-        test_predictions = model.predict(preprocess_input(np.concatenate(sampled_data)))
-        print([x.argmax(axis=-1) for x in test_predictions])
-        accuracy = (predictions == labels).float32().mean()
-        print("random accuracy", accuracy.item())
-        accuracy = (predictions == predictions).float32().mean()
-        print("perfect accuracy", accuracy.item())
-
-        # apply the attack
-        attack = LinfPGD(abs_stepsize=1/255*2, steps=10)
-        epsilons = [8/255*2]
-        advs, _, success = attack(fmodel, images, Misclassification(labels), epsilons=epsilons)
-
-        print(type(advs[0][0].numpy()))
-        print(advs[0][0].numpy().shape)
-
-        advs_images = ep.stack(advs[0])
-        print(advs_images.shape)
-        advs_predictions = fmodel(advs_images).argmax(axis=-1)
-        advs_accuracy = (predictions == advs_predictions).float32().mean()
-        print("two predictions overlap", advs_accuracy.item())
-
         output_dir = "advs_images_tf_%s" % model_name
         shutil.rmtree(output_dir, ignore_errors=True)
         os.makedirs(output_dir, exist_ok=True)
-        sample_path = dataset.get_sample_path()
-        for p, img in zip(sample_path, advs[0]):
-            output_filename = os.path.join(output_dir, os.path.basename(p))
-            image.save_img(output_filename, img.numpy());
+        # get data and test the model
+        # wrapping the tensors with ep.astensors is optional, but it allows
+        # us to work with EagerPy tensors in the following
+        # images = ep.astensor(tf.convert_to_tensor(np.vstack(sampled_data)))
+        for batch_idx in range(20):
+            print("round", batch_idx)
+            sampled_data = dataset.sample(50)
+            images = ep.astensor(tf.convert_to_tensor(preprocess_input(np.concatenate(sampled_data))))
+            labels = ep.astensor(tf.convert_to_tensor(np.stack(random.sample(range(0, 1000), 50))))
+            print(type(images))
+            print(images.dtype)
+            print(images.dtype)
+            print(type(labels))
+            print(images.dtype)
+            print("min", np.min(images.numpy()), "max", np.max(images.numpy()))
+            """
+            images, labels = ep.astensors(*samples(fmodel, dataset="imagenet", batchsize=100))
+            print("min", np.min(images.numpy()), "max", np.max(images.numpy()))
+            print(type(images))
+            print(images.dtype)
+            print(type(labels))
+            print(images.dtype)
+            """
+            # print(accuracy(fmodel, images, labels))
+            predictions = fmodel(images).argmax(axis=-1)
+            print(predictions.numpy())
+            test_predictions = model.predict(preprocess_input(np.concatenate(sampled_data)))
+            print([x.argmax(axis=-1) for x in test_predictions])
+            accuracy = (predictions == labels).float32().mean()
+            print("random accuracy", accuracy.item())
+            accuracy = (predictions == predictions).float32().mean()
+            print("perfect accuracy", accuracy.item())
 
-        max_pixel_delta = np.max(np.abs(images.numpy() - advs_images.numpy()))
-        print("max_pixel_delta", max_pixel_delta)
+            # apply the attack
+            attack = LinfPGD(abs_stepsize=1/255*2, steps=10)
+            epsilons = [8/255*2]
+            advs, _, success = attack(fmodel, images, Misclassification(labels), epsilons=epsilons)
 
-        # calculate and report the robust accuracy
-        """
-        robust_accuracy = 1 - success.float32().mean(axis=-1)
-        for eps, acc in zip(epsilons, robust_accuracy):
-            print(eps, acc.item())
+            print(type(advs[0][0].numpy()))
+            print(advs[0][0].numpy().shape)
 
-        # we can also manually check this
-        for eps, advs_ in zip(epsilons, advs):
-            print(eps, accuracy(fmodel, advs_, labels))
-            # but then we also need to look at the perturbation sizes
-            # and check if they are smaller than eps
-            print((advs_ - images).norms.linf(axis=(1, 2, 3)).numpy())
-        """
+            advs_images = ep.stack(advs[0])
+            print(advs_images.shape)
+            advs_predictions = fmodel(advs_images).argmax(axis=-1)
+            advs_accuracy = (predictions == advs_predictions).float32().mean()
+            print("two predictions overlap", advs_accuracy.item())
 
+            sample_path = dataset.get_sample_path()
+            max_pixel_delta = 0.
+            for pred, advs_pred, p, img, advs_img in zip(predictions, advs_predictions, sample_path, images, advs[0]):
+                if pred != advs_pred:
+                    output_filename = os.path.join(output_dir, os.path.basename(p))
+                    image.save_img(output_filename, advs_img.numpy());
+                    max_pixel_delta = max(max_pixel_delta, np.max(np.abs(img.numpy() - advs_img.numpy())))
+
+            print("max_pixel_delta", max_pixel_delta)
 
