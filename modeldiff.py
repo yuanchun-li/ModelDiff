@@ -284,7 +284,6 @@ class ModelDiff(ModelComparison):
         del module1.out, module2.out, feature1, feature2
         sim = dist
         
-                
         self.logger.info(f'  model similarity: {sim}')
         return sim
     
@@ -320,7 +319,6 @@ class ModelDiff(ModelComparison):
         del module1.out, module2.out, feature1, feature2
         sim = dist
         
-                
         self.logger.info(f'  model similarity: {sim}')
         return sim
     

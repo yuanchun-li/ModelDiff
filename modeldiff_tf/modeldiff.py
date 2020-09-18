@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import json
 import sys
 import os
 import argparse
@@ -16,7 +17,12 @@ from scipy import spatial
 from abc import ABC, abstractmethod
 
 from utils import lazy_property, Utils
+from tensorflow.keras.preprocessing import image
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
 
+from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2
+from tensorflow.keras.applications.nasnet import NASNetMobile
+from tensorflow.keras.applications.densenet import DenseNet121
 
 class Model:
     def __init__(self, model_path):
@@ -26,7 +32,20 @@ class Model:
         if self.model_path.endswith('h5'):
             self.tflite_path = self.model_path.replace('.h5', '.tflite')
             if not os.path.exists(self.tflite_path):
-                keras_model = tf.keras.models.load_model(self.model_path)
+                if "mobilenet" in self.model_path:
+                    keras_model = MobileNetV2(weights='imagenet')
+                elif "nasnet" in self.model_path:
+                    keras_model = NASNetMobile(weights='imagenet')
+                elif "densenet" in self.model_path:
+                    keras_model = DenseNet121(weights='imagenet')
+                '''
+                self.tflite_path = self.model_path.replace('.h5', '.tflite')
+                if not os.path.exists(self.tflite_path):
+                    keras_model = tf.keras.models.load_model(self.model_path)
+                    converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
+                    tflite_content = converter.convert()
+                    pathlib.Path(self.tflite_path).write_bytes(tflite_content)
+                '''
                 converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
                 tflite_content = converter.convert()
                 pathlib.Path(self.tflite_path).write_bytes(tflite_content)
@@ -134,12 +153,13 @@ class ModelComparison(ABC):
 
 
 class ModelDiff(ModelComparison):
-    N_INPUT_PAIRS = 100
+    # N_INPUT_PAIRS = 100
     MAX_VAL = 256
 
-    def __init__(self, model1, model2, gen_inputs=None, input_metrics=None, compute_decision_dist=None, compare_ddv=None):
+    def __init__(self, model1, model2, gen_inputs=None, input_metrics=None, compute_decision_dist=None, compare_ddv=None, advs_images_path=None):
         super().__init__(model1, model2)
         self.logger = logging.getLogger('ModelDiff')
+        self.logger.setLevel(logging.DEBUG)
         self.logger.debug(f'initialize comparison: {self.model1} {self.model2}')
         self.logger.debug(f'input shapes: {self.model1.input_shape} {self.model2.input_shape}')
         self.input_shape = model1.input_shape
@@ -149,16 +169,34 @@ class ModelDiff(ModelComparison):
         self.input_metrics = input_metrics if input_metrics else ModelDiff.metrics_output_range
         self.compute_decision_dist = compute_decision_dist if compute_decision_dist else ModelDiff._compute_decision_dist_output_cos
         self.compare_ddv = compare_ddv if compare_ddv else ModelDiff._compare_ddv_cos
+        self.original_images_path = "/home/yuancli/data/imagenet_samples"
+        self.advs_images_path = advs_images_path
 
     def compare(self):
+        if list(self.model1.input_shape) != list(self.model2.input_shape):
+            return None
         self.logger.info(f'generating profiling inputs')
-        seed_inputs = self.model1.get_seed_inputs(self.N_INPUT_PAIRS) + self.model2.get_seed_inputs(self.N_INPUT_PAIRS)
-        random.shuffle(seed_inputs)
-        inputs = list(self.gen_inputs(self, seed_inputs))
-        batch_inputs = np.array(inputs)
-        batch_outputs_1 = self.model1.batch_forward(batch_inputs)
-        batch_outputs_2 = self.model2.batch_forward(batch_inputs)
-        self.logger.info(f'batch_outputs_1={batch_outputs_1}\nbatch_outputs_2={batch_outputs_2}')
+        # seed_inputs = self.model1.get_seed_inputs(self.N_INPUT_PAIRS) + self.model2.get_seed_inputs(self.N_INPUT_PAIRS)
+        # seed_inputs = self.model1.get_seed_inputs() + self.model2.get_seed_inputs()
+        # random.shuffle(seed_inputs)
+        # inputs = list(self.gen_inputs(self, seed_inputs))
+        file_names = os.listdir(path=self.advs_images_path)
+        advs_file_path = [os.path.join(self.advs_images_path, name) for name in file_names]
+        original_file_path = [os.path.join(self.original_images_path, name) for name in file_names]
+        inputs = []
+        print(len(advs_file_path), "images")
+        for advs_path, original_path in zip(advs_file_path, original_file_path):
+            original_img = image.load_img(original_path, target_size=(224, 224))
+            original_x = preprocess_input(np.expand_dims(image.img_to_array(original_img), axis=0))
+            advs_img = image.load_img(advs_path, target_size=(224, 224))
+            advs_x = preprocess_input(np.expand_dims(image.img_to_array(advs_img), axis=0))
+            inputs.append(original_x)
+            inputs.append(advs_x)
+
+        # batch_inputs = np.array(inputs)
+        # batch_outputs_1 = self.model1.batch_forward(batch_inputs)
+        # batch_outputs_2 = self.model2.batch_forward(batch_inputs)
+        # self.logger.info(f'batch_outputs_1={batch_outputs_1}\nbatch_outputs_2={batch_outputs_2}')
 
         input_pairs = []
         for i in range(int(len(inputs) / 2)):
@@ -190,11 +228,26 @@ class ModelDiff(ModelComparison):
         ddv_distance = self.compare_ddv(ddv1, ddv2)
         model_similarity = 1 - ddv_distance
         self.logger.info(f'model similarity is {model_similarity}')
+
+        # save comparison result
+        comparison_result = {
+            "model1": self.model1.tflite_path,
+            "model2": self.model2.tflite_path,
+            "ddv1": ddv1.tolist(),
+            "ddv2": ddv2.tolist(),
+            "ddv_distance": ddv_distance,
+            "model_similarity": 1 - ddv_distance
+        }
+        with open(os.path.join("ddv_data", os.path.basename(self.model1.tflite_path) + "_" + os.path.basename(self.model2.tflite_path)), "w") as f:
+            json.dump(comparison_result, f, indent=2)
+
         return model_similarity
 
+    '''
     def test_input_generators(self):
         seed_inputs = self.model1.get_seed_inputs(self.N_INPUT_PAIRS) + self.model2.get_seed_inputs(self.N_INPUT_PAIRS)
         inputs = ModelDiff._gen_profiling_inputs_none(self, seed_inputs)
+    '''
 
     @staticmethod
     def metrics_output_diversity(model, inputs):
@@ -367,6 +420,8 @@ def parse_args():
                         required=True, help="Path to model 1.")
     parser.add_argument("-model2", action="store", dest="model2",
                         required=True, help="Path to model 2.")
+    parser.add_argument("-advs_images_path", action="store", dest="advs_images_path",
+                        required=True, help="Advs images path")
     args, unknown = parser.parse_known_args()
     return args
 
@@ -394,7 +449,8 @@ def main():
     args = parse_args()
     model1 = Model(args.model1)
     model2 = Model(args.model2)
-    comparison = ModelDiff(model1, model2)
+    advs_images_path = args.advs_images_path
+    comparison = ModelDiff(model1, model2, advs_images_path = advs_images_path)
     similarity = comparison.compare()
     print(f'the similarity between the models is {similarity}')
     # evaluate_micro_benchmark()
