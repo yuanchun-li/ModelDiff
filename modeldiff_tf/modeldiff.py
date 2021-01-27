@@ -248,6 +248,16 @@ class ModelDiff(ModelComparison):
         seed_inputs = self.model1.get_seed_inputs(self.N_INPUT_PAIRS) + self.model2.get_seed_inputs(self.N_INPUT_PAIRS)
         inputs = ModelDiff._gen_profiling_inputs_none(self, seed_inputs)
     '''
+    
+    @staticmethod
+    def compute_ddv(model, normal_inputs, adv_inputs):
+        input_pairs = zip(normal_inputs, adv_inputs)
+        ddv = []  # DDV is short for decision distance vector
+        for i, (xa, xb) in enumerate(input_pairs):
+            dist = ModelDiff._compute_decision_dist_output_cos(model, xa, xb)
+            ddv.append(dist)
+        ddv = Utils.normalize(np.array(ddv))
+        return ddv
 
     @staticmethod
     def metrics_output_diversity(model, inputs):
