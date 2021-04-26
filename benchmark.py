@@ -24,9 +24,9 @@ from dataset.caltech256 import Caltech257Data
 from dataset.stanford_40 import Stanford40Data
 from dataset.cub200 import CUB200Data
 
-from model.fe_resnet import resnet18_dropout, resnet50_dropout, resnet101_dropout
+from model.fe_resnet import resnet18_dropout, resnet34_dropout, resnet50_dropout, resnet101_dropout
 from model.fe_mobilenet import mbnetv2_dropout
-from model.fe_resnet import feresnet18, feresnet50, feresnet101
+from model.fe_resnet import feresnet18, feresnet34, feresnet50, feresnet101
 from model.fe_mobilenet import fembnetv2
 from model.fe_vgg16 import *
 from finetuner import Finetuner
@@ -496,11 +496,15 @@ class ImageBenchmark:
         self.models_dir = models_dir
         # self.datasets = ['MIT67', 'Flower102', 'SDog120']
         self.datasets = ['Flower102', 'SDog120']
+        """
+        Available datasets are MIT67, Flower102, SDog120
+        Available models are mbnetv2, resnet18, resnet34, resnet50, vgg11_bn, vgg16_bn
+        """
         # self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
         self.archs = ['mbnetv2', 'resnet18']
         # For debug
-        # self.datasets = ['MIT67', 'Flower102', 'SDog120']
-        # self.archs = ['mbnetv2', 'resnet18']
+        self.datasets = ['Flower102', 'SDog120']
+        self.archs = ['vgg11_bn', 'resnet34', 'resnet50']
 
     def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shuffle=True, seed=SEED, shot=-1):
         """
