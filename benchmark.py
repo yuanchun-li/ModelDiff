@@ -36,8 +36,8 @@ from weight_pruner import WeightPruner
 SEED = 98
 INPUT_SHAPE = (3, 224, 224)
 BATCH_SIZE = 64
-TRAIN_ITERS = 100000    # TODO update the number of iterations
-DEFAULT_ITERS = 10000   # TODO change back to 30000
+TRAIN_ITERS = 100000   
+DEFAULT_ITERS = 10000   
 TRANSFER_ITERS = DEFAULT_ITERS
 QUANTIZE_ITERS = DEFAULT_ITERS  # may be useless
 PRUNE_ITERS = DEFAULT_ITERS
@@ -46,12 +46,6 @@ STEAL_ITERS = DEFAULT_ITERS
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 CONTINUE_TRAIN = False  # whether to continue previous training
 
-# for debug
-TRAIN_ITERS = 10000
-TRANSFER_ITERS = 10000
-PRUNE_ITERS = 100
-DISTILL_ITERS = 10000
-STEAL_ITERS = 10000
 
 def lazy_property(func):
     attribute = '_lazy_' + func.__name__
@@ -494,17 +488,19 @@ class ImageBenchmark:
         self.logger = logging.getLogger('ImageBench')
         self.datasets_dir = datasets_dir
         self.models_dir = models_dir
-        # self.datasets = ['MIT67', 'Flower102', 'SDog120']
-        self.datasets = ['Flower102', 'SDog120']
         """
         Available datasets are MIT67, Flower102, SDog120
         Available models are mbnetv2, resnet18, resnet34, resnet50, vgg11_bn, vgg16_bn
         """
-        # self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn']
-        self.archs = ['mbnetv2', 'resnet18']
-        # For debug
+        # Used in the paper
         self.datasets = ['Flower102', 'SDog120']
-        self.archs = ['vgg11_bn', 'resnet34', 'resnet50']
+        self.archs = ['mbnetv2', 'resnet18']
+        # Other archs
+        # self.datasets = ['MIT67', 'Flower102', 'SDog120']
+        # self.archs = ['mbnetv2', 'resnet18', 'vgg16_bn', 'vgg11_bn', 'resnet34', 'resnet50']
+        # For debug
+        # self.datasets = ['Flower102']
+        # self.archs = ['resnet18']
 
     def get_dataloader(self, dataset_id, split='train', batch_size=BATCH_SIZE, shuffle=True, seed=SEED, shot=-1):
         """
@@ -724,5 +720,4 @@ if __name__ == '__main__':
     for model_wrapper in models_to_gen:
             
         model_wrapper.gen_model(regenerate=args.regenerate)
-    # print(benchmark.model2variations)
 
